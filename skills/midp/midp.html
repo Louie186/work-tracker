@@ -525,6 +525,7 @@ body.soft .tw th:first-child { border-top-left-radius: 14px; }
 <script src="midp-plus.js"></script>
 <script src="midp-issues.js"></script>
 <script src="midp-folder.js"></script>
+<script src="midp-assign.js"></script>
 <script>
 /* =====================================================================
    TIDP CORE
@@ -4008,6 +4009,7 @@ body.soft .tw th:first-child { border-top-left-radius: 14px; }
   if (typeof window.MIDP_PLUS === 'function') window.MIDP_PLUS(window.MIDP);
   if (typeof window.MIDP_ISSUES === 'function') window.MIDP_ISSUES(window.MIDP);
   if (typeof window.MIDP_FOLDER === 'function') window.MIDP_FOLDER(window.MIDP);
+  if (typeof window.MIDP_ASSIGN === 'function') window.MIDP_ASSIGN(window.MIDP);
 
   // inside Lew's Tracker the look is set in Settings only
   try { if (window.parent !== window) $$('.theme-seg').forEach(function (el) { el.style.display = 'none'; }); } catch (e) {}

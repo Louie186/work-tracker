@@ -437,6 +437,53 @@ window.MIDP_FOLDER = function (A) {
     var c = { set: 'c-ok', number: 'c-info', title: 'c-info', suggested: 'c-warn', guess: 'c-warn' }[src] || 'c-mute';
     return esc(v) + (src && src !== 'set' ? ' <span class="tag ' + c + '" title="' + esc({ number: 'From the drawing number', title: 'From the title', suggested: 'Suggested — not confirmed yet', guess: 'Guessed from the number family — confirm it with ✎' }[src] || '') + '">' + esc(src) + '</span>' : '');
   }
+  /* 🌳 the folders as they are on disk: click a folder, see what is inside */
+  function treeView(B, u) {
+    var nodes = {}, req = u.req;
+    var node = function (path) { if (!nodes[path]) nodes[path] = { path: path, files: [], all: 0 }; return nodes[path]; };
+    node('');
+    F.files.forEach(function (f) {
+      node(f[0]).files.push(f);
+      var parts = f[0] ? f[0].replace(/\/$/, '').split('/') : [];
+      node('').all++;
+      for (var i = 1; i <= parts.length; i++) { node(parts.slice(0, i).join('/') + '/').all++; }
+    });
+    var paths = Object.keys(nodes).sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }); });
+    var cur = nodes[u.tf || ''] ? u.tf || '' : '';
+    var byBase = new Map(); B.rows.forEach(function (g) { byBase.set(g.base, g); });
+    var left = '<div class="fd-tl">' + paths.map(function (p) {
+      var depth = p ? p.split('/').length - 1 : 0, name = p ? p.replace(/\/$/, '').split('/').pop() : (F.root || 'Export folder');
+      var n = nodes[p], here = n.files.length;
+      return '<button type="button" class="fd-ti' + (p === cur ? ' on' : '') + (/^_|^@/.test(name) ? ' srt' : '') + '" data-act="fdtf" data-v="' + esc(p) + '" style="padding-left:' + (6 + depth * 14) + 'px" title="' + esc(p || F.root) + '">' +
+        (depth ? '└ ' : '') + '📁 ' + esc(name) + ' <span class="c" title="' + here + ' directly in this folder, ' + n.all + ' with its subfolders">' + n.all + '</span></button>';
+    }).join('') + '</div>';
+    // inside the chosen folder: one line per drawing (PDF + DWG together), then other files
+    var groups = {}, others = [];
+    nodes[cur].files.forEach(function (f) {
+      var p = parseName(f[1]);
+      if (!p.num) { others.push(f); return; }
+      var g = groups[p.base] || (groups[p.base] = { base: p.base, num: p.num, revs: {}, exts: {} });
+      if (p.rev) g.revs[p.rev] = 1; g.exts[p.ext] = (g.exts[p.ext] || 0) + 1;
+    });
+    var listed = new Set((B.list || []).map(function (x) { return x.base; }));
+    var body = Object.keys(groups).sort().map(function (k) {
+      var g = groups[k], m = byBase.get(k), r = m && m.r;
+      var types = req.map(function (e) { var n = g.exts[e] || 0; return '<span class="tag ' + (!n ? 'c-bad' : n > 1 ? 'c-warn' : 'c-ok') + '">' + (n ? '✓' : '✗') + ' ' + esc(e.toUpperCase()) + (n > 1 ? ' ×' + n : '') + '</span>'; }).join(' ') +
+        Object.keys(g.exts).filter(function (e) { return req.indexOf(e) < 0; }).map(function (e) { return ' <span class="tag c-mute">' + esc(e) + '</span>'; }).join('');
+      return '<tr><td class="mono">' + (r ? A.numLink(g.num, r.key) : esc(g.num)) + '</td><td>' + esc(Object.keys(g.revs).join(', ') || '—') + '</td><td>' + types + '</td>' +
+        '<td>' + (r ? esc(r.title) : '<span class="tag c-bad">Not in MIDP</span>') + '</td>' +
+        '<td>' + (m && m.r ? esc([m.tower, m.typ ? T.drawingUnitKey(m.typ) : '', m.model ? m.model.split('-').pop() : ''].filter(Boolean).join(' · ')) || '<span class="tag c-bad">missing</span>' : '') + '</td>' +
+        (B.sb ? '<td>' + (listed.has(k) ? A.tag('In the list', 'c-ok') : A.tag('Not in the list', 'c-mute')) + '</td>' : '') + '</tr>';
+    }).join('');
+    var nd = Object.keys(groups).length;
+    var right = '<div class="fd-tr"><h3 style="margin:0 0 6px">📁 ' + esc(cur || F.root || 'Export folder') + '</h3><p class="hint" style="margin:0 0 8px">' +
+      A.plural(nd, 'drawing') + ' · ' + A.plural(nodes[cur].files.length, 'file') + ' directly in this folder' + (nodes[cur].all > nodes[cur].files.length ? ' · ' + nodes[cur].all + ' with its subfolders' : '') + '</p>' +
+      (nd ? '<div class="fd-ttw"><table class="fd-tt"><thead><tr><th>Drawing</th><th>Rev</th><th>Files</th><th>MIDP title</th><th>Tower · Typology · Model</th>' + (B.sb ? '<th>Submission list</th>' : '') + '</tr></thead><tbody>' + body + '</tbody></table></div>' : '') +
+      (others.length ? '<p class="hint" style="margin:8px 0 2px">Other files</p>' + others.map(function (f) { return '<div class="mono hint">' + esc(f[1]) + '</div>'; }).join('') : '') +
+      (!nd && !others.length ? '<div class="box empty">No files directly in this folder — open a subfolder on the left.</div>' : '') + '</div>';
+    return '<div class="fd-tree2">' + left + right + '</div>';
+  }
+
   /* 🗂 the sorting box (same in both views) */
   function sortHtml(u) {
     var h = '';
@@ -484,11 +531,14 @@ window.MIDP_FOLDER = function (A) {
       h += '<div class="kpis fd-k"><button class="kpi" type="button" data-act="fdf" data-v="t:Ready"><span class="v" style="color:var(--ok)">' + t.Ready + '</span><span class="l">Ready</span></button>' +
         '<button class="kpi" type="button" data-act="fdf" data-v="t:Part"><span class="v" style="color:var(--warn)">' + t.Part + '</span><span class="l">In folder, a file missing</span></button>' +
         '<button class="kpi" type="button" data-act="fdf" data-v="t:Missing"><span class="v" style="color:var(--bad)">' + B.missing.length + '</span><span class="l">Missing (expected)</span></button>' +
-        '<button class="kpi" type="button" data-act="fdf" data-v="t:Extra"><span class="v">' + t.Extra + '</span><span class="l">Extra (not in the list)</span></button></div>' +
-        '<div class="toolbar"><div class="chips"><button class="chip" type="button" data-act="fdview" data-v="list" aria-pressed="' + (u.view === 'list') + '">📋 By submission list</button>' +
-        '<button class="chip" type="button" data-act="fdview" data-v="folder" aria-pressed="' + (u.view !== 'list') + '">📁 By folder</button></div></div>';
-      if (u.view === 'list') return h + listView(B, u) + sortHtml(u);
+        '<button class="kpi" type="button" data-act="fdf" data-v="t:Extra"><span class="v">' + t.Extra + '</span><span class="l">Extra (not in the list)</span></button></div>';
     }
+    var view = u.view === 'list' && !B.sb ? 'folder' : u.view || 'folder';
+    h += '<div class="toolbar"><div class="chips">' + (B.sb ? '<button class="chip" type="button" data-act="fdview" data-v="list" aria-pressed="' + (view === 'list') + '">📋 By submission list</button>' : '') +
+      '<button class="chip" type="button" data-act="fdview" data-v="folder" aria-pressed="' + (view === 'folder') + '">📁 By drawing</button>' +
+      '<button class="chip" type="button" data-act="fdview" data-v="tree" aria-pressed="' + (view === 'tree') + '">🌳 Folder tree</button></div></div>';
+    if (view === 'list') return h + listView(B, u) + sortHtml(u);
+    if (view === 'tree') return h + treeView(B, u) + sortHtml(u);
     h += '<div class="toolbar"><div class="chips">' + KINDS.map(function (k) { return k[0] === '' || counts[k[0]] ? '<button class="chip" type="button" data-act="fdf" data-v="' + k[0] + '" aria-pressed="' + (u.f === k[0]) + '">' + esc(k[1]) + '<span class="c">' + (counts[k[0]] || 0) + '</span></button>' : ''; }).join('') +
       (/^t:/.test(u.f) ? '<button class="chip" type="button" data-act="fdf" data-v="' + esc(u.f) + '" aria-pressed="true">' + esc(u.f.slice(2)) + '</button>' : '') + '</div>' +
       '<span class="grow"></span><input type="search" id="fdQ" data-fd="q" placeholder="Search number, title, folder" value="' + esc(u.q) + '"></div>';
@@ -562,6 +612,7 @@ window.MIDP_FOLDER = function (A) {
       save(); A.render();
     },
     fdsort: sortNow,
+    fdtf: function (el) { F.ui.tf = el.getAttribute('data-v'); save(); A.render(); },
     fdview: function (el) { F.ui.view = el.getAttribute('data-v'); save(); A.render(); },
     fdlf: function (el) { var v = el.getAttribute('data-v'); F.ui.lf = F.ui.lf === v && v ? '' : v; save(); A.render(); },
     fdtarget: function () {
@@ -606,6 +657,11 @@ window.MIDP_FOLDER = function (A) {
   css.textContent = '.fd-top{padding:10px 12px;margin-bottom:10px}.fd-k{margin:8px 0}.fd-k .kpi{cursor:pointer;text-align:left}' +
     '.fd-sort{margin-top:14px;padding:12px}.fd-tree{display:flex;flex-wrap:wrap;gap:6px;max-height:220px;overflow:auto}' +
     '.fd-node{font-size:12px;border:1px solid var(--edge);padding:3px 8px;background:var(--panel)}.fd-node b{color:var(--accent);margin-left:4px}.fd-node.warn{border-style:dashed}' +
-    '.fd-tgt{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:6px 0;padding:8px;border:1px dashed var(--edge)}.fd-tg{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}.fd-tg input{min-width:260px;max-width:100%}';
+    '.fd-tgt{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:6px 0;padding:8px;border:1px dashed var(--edge)}.fd-tg{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}.fd-tg input{min-width:260px;max-width:100%}' +
+    '.fd-tree2{display:grid;grid-template-columns:minmax(200px,280px) 1fr;gap:12px;align-items:start}.fd-tl{border:1px solid var(--edge);background:var(--panel);max-height:70vh;overflow:auto;padding:4px 0}' +
+    '.fd-ti{display:flex;align-items:center;gap:4px;width:100%;text-align:left;border:0;background:none;color:var(--ink);font:inherit;font-size:13px;padding:5px 8px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+    '.fd-ti:hover{background:var(--raise)}.fd-ti.on{background:var(--raise);font-weight:700;box-shadow:inset 3px 0 0 var(--accent)}.fd-ti.srt{color:var(--info)}.fd-ti .c{margin-left:auto;color:var(--muted);font-size:11px}' +
+    '.fd-tr{min-width:0}.fd-ttw{overflow-x:auto;border:1px solid var(--edge)}.fd-tt{width:100%;border-collapse:collapse}.fd-tt td,.fd-tt th{padding:5px 8px;font-size:13px;text-align:left;vertical-align:top;border-bottom:1px solid var(--edge)}.fd-tt th{background:var(--raise);white-space:nowrap}.fd-tt td:first-child{white-space:nowrap}' +
+    '@media (max-width:760px){.fd-tree2{grid-template-columns:1fr}.fd-tl{max-height:40vh}}';
   document.head.appendChild(css);
 };

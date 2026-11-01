@@ -121,6 +121,13 @@ Live site: https://louie186.github.io/work-tracker/
 - Edit in Excel (filter, fill down, paste). Work status has a drop-down.
 - **⤒ Import Excel** (top, next to Export Excel) or **⤒ Import edits** (next to Export this view) — or Files → Your exported tracker → you see every change (Now → From the file) and press **Apply**. Only your columns are read back (Work status, Assigned to, Notes, Tower, Typology, Model number, your own); info columns (Due, Sent, Rev…) are skipped. Each change goes in the history.
 
+### 💾 Model assignments (Models tab / Files)
+
+- **Drawing ID** = the drawing number without its revision — it stays the same through T0, T1, 00…
+- **⬇ Export assignments**: one Excel (Drawing ID, number, title, Tower, Typology, Model). Keep it with the project.
+- **⬆ Import assignments**: puts them back on a new site, PC or after “Start over” — you see every change first; a renumbered drawing is found by its title.
+- After a new MIDP: the box shows what was kept, **Confirm renumbered drawings** (same title, new number → move your entries), and what is no longer in the MIDP.
+
 ### 📁 Folder check (Deliver)
 
 - **Connect the export folder** (Edge / Chrome remember it → **↻ Rescan**). Only file names are read; subfolders included (switchable).
@@ -132,6 +139,7 @@ Live site: https://louie186.github.io/work-tracker/
 - **📋 By submission list** (when a list is picked): every drawing of the list — in the folder or not, PDF / DWG counts, **Where** (still in the export folder / already sorted), subfolder. **Doubled** = the same file type twice in the same place.
 - Sorted folders (`_Sorted`, the target) are read too, so nothing disappears after sorting; only files still in the export folder are sorted again.
 - Submission lists with IFC revisions (`…-00`, `-01`) now match the MIDP by number (**Match · other rev**).
+- **🌳 Folder tree**: the folders as they are on disk (with file counts). Click one to see the drawings inside — PDF / DWG, MIDP title, Tower · Typology · Model, in the submission list or not.
 - **Target folder**: **📂 Choose…** for *Sort now* (Edge remembers it), or type a full path for the .bat (e.g. `D:\Submissions\IFC 2026-11`). Empty = `_Sorted` inside the export folder. A target inside the export folder is left out when reading.
 
 ### Issues (typos and fixes)

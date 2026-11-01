@@ -496,6 +496,7 @@ body.soft .tw th:first-child { border-top-left-radius: 14px; }
     <button class="tab" role="tab" type="button" data-go="checks" data-grp="review">Issues<span class="n" data-count="checks">0</span></button>
     <button class="tab" role="tab" type="button" data-go="pre" data-grp="review">Pre-check<span class="n" data-count="pre">–</span></button>
     <button class="tab" role="tab" type="button" data-go="subs" data-grp="deliver">Submissions<span class="n" data-count="subs">0</span></button>
+    <button class="tab" role="tab" type="button" data-go="folder" data-grp="deliver">📁 Folder check<span class="n" data-count="folder">–</span></button>
     <button class="tab" role="tab" type="button" data-go="models" data-grp="deliver">Models<span class="n" data-count="models">0%</span></button>
     <button class="tab" role="tab" type="button" data-go="files" data-grp="files">Files</button>
   </nav>
@@ -523,6 +524,7 @@ body.soft .tw th:first-child { border-top-left-radius: 14px; }
 <script src="../../core/todo-link.js"></script>
 <script src="midp-plus.js"></script>
 <script src="midp-issues.js"></script>
+<script src="midp-folder.js"></script>
 <script>
 /* =====================================================================
    TIDP CORE
@@ -2336,7 +2338,8 @@ body.soft .tw th:first-child { border-top-left-radius: 14px; }
       pre: S.pre ? S.pre.rows.filter(function (r) { return r.kind !== 'ok'; }).length : '–',
       models: S.latest ? pct(ms.assigned, ms.total) + '%' : '0%',
       checks: window.MIDP_ISSUES_COUNT ? MIDP_ISSUES_COUNT() : S.checks.length,
-      lists: window.MIDP_EXT && MIDP_EXT.listCount ? MIDP_EXT.listCount() : 0
+      lists: window.MIDP_EXT && MIDP_EXT.listCount ? MIDP_EXT.listCount() : 0,
+      folder: window.MIDP_FOLDER_COUNT ? MIDP_FOLDER_COUNT() : '–'
     };
     $$('[data-count]').forEach(function (el) { el.textContent = counts[el.getAttribute('data-count')]; });
   }
@@ -3999,9 +4002,11 @@ body.soft .tw th:first-child { border-top-left-radius: 14px; }
   window.MIDP = { S: S, VIEWS: VIEWS, ACTIONS: ACTIONS, CHANGES: CHANGES, T: T, SET: SET, render: render, go: go, openDetail: openDetail, rowByKey: rowByKey,
     mInfo: mInfo, isAssignable: isAssignable, itemsNow: itemsNow, stagesNow: stagesNow, subHead: subHead, fmtDay: fmtDay, esc: esc, tag: tag, toast: toast,
     revHtml: revHtml, dueCell: dueCell, dueStage: dueStage, readJSON: readJSON, writeJSON: writeJSON,
-    grid: grid, chip: chip, numLink: numLink, catText: catText, plural: plural, openDialog: openDialog, closeDialog: closeDialog, saveStore: saveStore, compute: compute };
+    grid: grid, chip: chip, numLink: numLink, catText: catText, plural: plural, openDialog: openDialog, closeDialog: closeDialog, saveStore: saveStore, compute: compute,
+    setVal: setVal, applyModel: applyModel, subsByDate: subsByDate };
   if (typeof window.MIDP_PLUS === 'function') window.MIDP_PLUS(window.MIDP);
   if (typeof window.MIDP_ISSUES === 'function') window.MIDP_ISSUES(window.MIDP);
+  if (typeof window.MIDP_FOLDER === 'function') window.MIDP_FOLDER(window.MIDP);
 
   // inside Lew's Tracker the look is set in Settings only
   try { if (window.parent !== window) $$('.theme-seg').forEach(function (el) { el.style.display = 'none'; }); } catch (e) {}

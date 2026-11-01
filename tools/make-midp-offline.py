@@ -23,6 +23,7 @@ swaps = {
     '<script src="../../core/todo-link.js"></script>': js(ROOT / 'core' / 'todo-link.js'),
     '<script src="midp-plus.js"></script>': js(MIDP / 'midp-plus.js'),
     '<script src="midp-issues.js"></script>': js(MIDP / 'midp-issues.js'),
+    '<script src="midp-folder.js"></script>': js(MIDP / 'midp-folder.js'),
 }
 for old, new in swaps.items():
     if old not in html:

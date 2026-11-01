@@ -17,7 +17,7 @@ window.MIDP_PLUS = function (A) {
   'use strict';
   var S = A.S, T = A.T, esc = A.esc;
   var LKEY = 'tidp-checker:lists', UKEY = 'tidp-checker:lookup', IKEY = 'tidp-checker:index';
-  var GROUPS = { find: ['lookup', 'lists'], track: ['overview', 'tracker', 'chase', 'cats'], review: ['changes', 'checks', 'pre'], deliver: ['subs', 'models'], files: ['files'] };
+  var GROUPS = { find: ['lookup', 'lists'], track: ['overview', 'tracker', 'chase', 'cats'], review: ['changes', 'checks', 'pre'], deliver: ['subs', 'folder', 'models'], files: ['files'] };
   var CODES = { T1: 'Tower 1', T2: 'Tower 2', T3: 'Tower 3', T4: 'Tower 4', PD: 'Podium', XX: 'General', ZZ: 'Several buildings' };
   var P = Object.assign({ q: '', chip: '', open: '', last: {}, f: {}, recent: [] }, A.readJSON(UKEY, {}));
   P.f = P.f || {}; P.recent = P.recent || [];
@@ -418,6 +418,8 @@ window.MIDP_PLUS = function (A) {
   window.MIDP_EXT = {
     afterCompute: function () { build(); },
     listCount: function () { return L.lists.length; },
+    info: function (key) { if (!IX) build(); return IX && IX.byKey.get(key); },        // tower / typology / model of one drawing (Folder check)
+    typoNames: function () { if (!IX) build(); return IX ? IX.typos.map(function (t) { return t.name; }) : []; },
     detailExtra: function (r) {
       if (!IX) build(); var d = IX && IX.byKey.get(r.key); if (!d) return '';
       var man = L.lists.filter(function (l) { return l.kind !== 'search'; });

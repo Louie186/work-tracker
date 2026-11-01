@@ -121,6 +121,15 @@ Live site: https://louie186.github.io/work-tracker/
 - Edit in Excel (filter, fill down, paste). Work status has a drop-down.
 - **⤒ Import Excel** (top, next to Export Excel) or **⤒ Import edits** (next to Export this view) — or Files → Your exported tracker → you see every change (Now → From the file) and press **Apply**. Only your columns are read back (Work status, Assigned to, Notes, Tower, Typology, Model number, your own); info columns (Due, Sent, Rev…) are skipped. Each change goes in the history.
 
+### 📁 Folder check (Deliver)
+
+- **Connect the export folder** (Edge / Chrome remember it → **↻ Rescan**). Only file names are read; subfolders included (switchable).
+- Each drawing: PDF + DWG paired (choose which file types are required), matched to the MIDP **without the revision**. The revision read from the file is shown as it is, with its set (00 = IFC, T0/T1 = Tender).
+- Flags: a file type missing · not in the MIDP (with “did you mean…”) · two copies / revisions · Tower / Typology / Model missing or only guessed.
+- **✎ fix** Tower / Typology / Model (one or ticked rows) — saved in the Tracker, shows everywhere. **✓** accepts a suggested model.
+- **Check against** a submission list: Ready · File missing · Missing · Extra.
+- **🗂 Sort the files**: pick the grouping (e.g. Tower → Typology = `_Sorted\Tower1\1BRA`). **Sort now** (Edge) or **⬇ Sorting file (.bat)** — put it inside the export folder and double-click (no path to type). Copy by default, nothing deleted, log + **⬇ Undo file**. Unclear drawings go to `_ToCheck`, unknown numbers to `_Not in MIDP`, other files to `_Other files`.
+
 ### Issues (typos and fixes)
 
 - **To review** = the TIDP checks + extra ones: possible typos in titles, code typos in numbers, odd spaces / symbols, level in number vs title, type code vs title (PLN with "Sections"…).

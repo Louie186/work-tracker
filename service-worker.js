@@ -1,7 +1,7 @@
 /* service-worker.js — lets the tracker open without internet.
    Network first: you always get the newest files when online (no stale
    versions after an update); the saved copy is only used when offline. */
-const CACHE = 'lews-tracker-v10.27';
+const CACHE = 'lews-tracker-v10.28';
 const CORE = [
   './', 'index.html', 'manifest.json',
   'core/app.css', 'core/theme.css', 'core/lt.css',

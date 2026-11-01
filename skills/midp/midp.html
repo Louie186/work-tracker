@@ -609,7 +609,8 @@ body.soft .tw th:first-child { border-top-left-radius: 14px; }
       trailingDash = true;
       parts.pop();
       base = parts.join('-');
-    } else if (parts.length >= 5 && REV_RE.test(last)) {
+    } else if (parts.length >= 5 && (REV_RE.test(last) || (/^\d{2,3}$/.test(last) && /^\d{3,}$/.test(parts[parts.length - 2])))) {
+      // T0 / P01 … and also 00 / 01 (IFC) right after the sequence number
       rev = last;
       base = parts.slice(0, -1).join('-');
     }
@@ -1800,7 +1801,7 @@ body.soft .tw th:first-child { border-top-left-radius: 14px; }
   };
   const MATCH = {
     exact: { label: 'Matches TIDP', cls: 'c-ok' },
-    rev: { label: 'Other revision', cls: 'c-info' },
+    rev: { label: 'Match · other rev', cls: 'c-info' },
     title: { label: 'Title only', cls: 'c-odd' },
     none: { label: 'Not in TIDP', cls: 'c-bad' }
   };
@@ -3367,7 +3368,7 @@ body.soft .tw th:first-child { border-top-left-radius: 14px; }
     if (!S.latest) { el.textContent = plural(entries.length, 'drawing') + '. Load the latest TIDP to check them.'; return; }
     const c = { exact: 0, rev: 0, title: 0, none: 0 };
     T.matchList(entries, S.latest.items).forEach(function (r) { c[r.match]++; });
-    el.innerHTML = '<b style="color:var(--ink)">' + plural(entries.length, 'drawing') + '</b> · ' + c.exact + ' match the TIDP · ' + c.rev + ' other revision · ' + c.title + ' title only · ' + c.none + ' not in TIDP';
+    el.innerHTML = '<b style="color:var(--ink)">' + plural(entries.length, 'drawing') + '</b> · ' + c.exact + ' match the TIDP · ' + c.rev + ' match with another revision · ' + c.title + ' title only · ' + c.none + ' not in TIDP';
   }
   function saveSubmission() {
     const entries = subEntries();

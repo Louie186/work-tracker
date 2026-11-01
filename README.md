@@ -129,6 +129,9 @@ Live site: https://louie186.github.io/work-tracker/
 - **✎ fix** Tower / Typology / Model (one or ticked rows) — saved in the Tracker, shows everywhere. **✓** accepts a suggested model.
 - **Check against** a submission list: Ready · File missing · Missing · Extra.
 - **🗂 Sort the files**: pick the grouping (e.g. Tower → Typology = `_Sorted\Tower1\1BRA`). **Sort now** (Edge) or **⬇ Sorting file (.bat)** — put it inside the export folder and double-click (no path to type). Copy by default, nothing deleted, log + **⬇ Undo file**. Unclear drawings go to `_ToCheck`, unknown numbers to `_Not in MIDP`, other files to `_Other files`.
+- **📋 By submission list** (when a list is picked): every drawing of the list — in the folder or not, PDF / DWG counts, **Where** (still in the export folder / already sorted), subfolder. **Doubled** = the same file type twice in the same place.
+- Sorted folders (`_Sorted`, the target) are read too, so nothing disappears after sorting; only files still in the export folder are sorted again.
+- Submission lists with IFC revisions (`…-00`, `-01`) now match the MIDP by number (**Match · other rev**).
 - **Target folder**: **📂 Choose…** for *Sort now* (Edge remembers it), or type a full path for the .bat (e.g. `D:\Submissions\IFC 2026-11`). Empty = `_Sorted` inside the export folder. A target inside the export folder is left out when reading.
 
 ### Issues (typos and fixes)

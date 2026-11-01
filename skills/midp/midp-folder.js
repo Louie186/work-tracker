@@ -21,7 +21,7 @@ window.MIDP_FOLDER = function (A) {
   var S = A.S, T = A.T, esc = A.esc;
   var KEY = 'tidp-checker:folder';
   var F = Object.assign({ root: '', at: 0, files: [], prev: [], ui: {} }, A.readJSON(KEY, {}));
-  F.ui = Object.assign({ deep: true, req: ['pdf', 'dwg'], sub: '', group: ['tower', 'typ'], mode: 'copy', f: '', q: '', tpath: '', tname: '', tskip: '' }, F.ui || {});
+  F.ui = Object.assign({ deep: true, req: ['pdf', 'dwg'], sub: '', group: ['tower', 'typ'], mode: 'copy', f: '', q: '', view: 'list', lf: '', tpath: '', tname: '', tskip: '' }, F.ui || {});
   var H = { root: null, target: null, files: new Map(), dirs: new Map() };     // handles of the last scan (this session only)
   var sel = new Set(), CACHE = null, BUSY = false;
   var canPick = typeof window.showDirectoryPicker === 'function';
@@ -51,10 +51,10 @@ window.MIDP_FOLDER = function (A) {
         if (st.done) return;
         var name = st.value[0], h = st.value[1];
         if (h.kind === 'file') {
-          if (/^(Sort_files_|Undo_sort_).*\.bat$/i.test(name)) return next();          // our own sorting files
+          if (/^(Sort_files_|Undo_sort_).*\.bat$/i.test(name) || /^sort-log\.txt$/i.test(name)) return next();          // our own sorting files
           return h.getFile().then(function (f) { out.push([path, name, f.size, f.lastModified]); H.files.set(path + name, h); H.dirs.set(path, dir); }).then(next, next);
         }
-        if (!F.ui.deep || /^_Sorted/i.test(name) || (F.ui.tskip && path + name + '/' === F.ui.tskip)) return next();
+        if (!F.ui.deep) return next();
         return walk(h, path + name + '/', out).then(next);
       });
     };
@@ -63,7 +63,15 @@ window.MIDP_FOLDER = function (A) {
   function scan(h) {
     BUSY = true; A.render();
     var out = []; H.files = new Map(); H.dirs = new Map();
-    return walk(h, '', out).then(function () { took(h.name, out); }).catch(function (e) { A.toast('Could not read the folder: ' + e.message); })
+    return walk(h, '', out).then(function () {
+      // the chosen target folder (outside the export folder) is read too, shown as "@name/…"
+      if (!F.ui.tname || F.ui.tskip) return;
+      return loadTarget().then(function (t) {
+        if (!t) return;
+        return t.queryPermission({ mode: 'read' }).then(function (p) { return p === 'granted' ? p : t.requestPermission({ mode: 'read' }); })
+          .then(function (p) { if (p === 'granted') return walk(t, '@' + t.name + '/', out); }).catch(function () {});
+      });
+    }).then(function () { took(h.name, out); }).catch(function (e) { A.toast('Could not read the folder: ' + e.message); })
       .then(function () { BUSY = false; A.render(); });
   }
   function took(rootName, out) {
@@ -93,12 +101,15 @@ window.MIDP_FOLDER = function (A) {
       var rel = f.webkitRelativePath || f.name, parts = rel.split('/'); parts.shift();
       var name = parts.pop(), path = parts.length ? parts.join('/') + '/' : '';
       if (!F.ui.deep && path) return;
-      if (/^_Sorted/i.test(path) || (F.ui.tskip && path.indexOf(F.ui.tskip) === 0) || /^(Sort_files_|Undo_sort_).*\.bat$/i.test(name)) return;
+      if (/^(Sort_files_|Undo_sort_).*\.bat$/i.test(name) || /^sort-log\.txt$/i.test(name)) return;
       out.push([path, name, f.size, f.lastModified]);
     });
     var root = list[0] && list[0].webkitRelativePath ? list[0].webkitRelativePath.split('/')[0] : 'folder';
     H.root = null; took(root, out); A.render();
   }
+
+  /* export folder, or a sorted place (_Sorted, a target inside the export folder, or the target folder "@name/") */
+  function isSorted(path) { return /^_Sorted(\/|$)/i.test(path) || /^@/.test(path) || !!(F.ui.tskip && path.indexOf(F.ui.tskip) === 0); }
 
   /* ---------- names → drawings ---------- */
   var REV = /^(\d{1,3}|[A-Z]\d{1,3}|[A-Z]{2}\d{1,3})$/;
@@ -153,10 +164,12 @@ window.MIDP_FOLDER = function (A) {
     var by = midpIndex(), req = F.ui.req, groups = new Map(), other = [];
     F.files.forEach(function (f) {
       var p = parseName(f[1]);
-      if (!p.num) { other.push({ other: true, key: 'o:' + f[0] + f[1], path: f[0], name: f[1], ext: p.ext, files: [f] }); return; }
+      var srt = isSorted(f[0]);
+      if (!p.num) { other.push({ other: true, key: 'o:' + f[0] + f[1], path: f[0], name: f[1], ext: p.ext, files: [f], sorted: srt }); return; }
       var g = groups.get(p.base);
-      if (!g) { g = { key: p.base, base: p.base, nums: {}, revs: {}, exts: {}, paths: {}, files: [] }; groups.set(p.base, g); }
+      if (!g) { g = { key: p.base, base: p.base, nums: {}, revs: {}, exts: {}, extE: {}, extS: {}, paths: {}, files: [], nExp: 0, nSrt: 0 }; groups.set(p.base, g); }
       g.nums[p.num] = 1; if (p.rev) g.revs[p.rev] = 1; g.exts[p.ext] = (g.exts[p.ext] || 0) + 1; g.paths[f[0] || '(top)'] = 1; g.files.push(f);
+      if (srt) { g.nSrt++; g.extS[p.ext] = (g.extS[p.ext] || 0) + 1; } else { g.nExp++; g.extE[p.ext] = (g.extE[p.ext] || 0) + 1; }
     });
     var rows = [];
     groups.forEach(function (g) {
@@ -164,7 +177,9 @@ window.MIDP_FOLDER = function (A) {
       g.num = Object.keys(g.nums)[0]; g.rev = revs.join(', '); g.set = revs.map(setOf).filter(function (x, i, a) { return x && a.indexOf(x) === i; }).join(', ');
       g.r = r; g.near = r ? null : nearest(g.base, by);
       g.missingExt = req.filter(function (x) { return !g.exts[x]; });
-      g.dupe = revs.length > 1 || Object.keys(g.paths).length > 1 || Object.keys(g.exts).some(function (x) { return g.exts[x] > 1; });
+      // doubled = the same file type twice in the SAME place (or two revisions); export + sorted copy is shown as "Export + sorted"
+      g.dupe = revs.length > 1 || Object.keys(g.extE).some(function (x) { return g.extE[x] > 1; }) || Object.keys(g.extS).some(function (x) { return g.extS[x] > 1; });
+      g.place = g.nExp && g.nSrt ? 'both' : g.nSrt ? 'sorted' : 'unsorted';
       if (r) {
         var i = (MIDP_EXT.info && MIDP_EXT.info(r.key)) || {}, mi = A.mInfo(r);
         g.title = r.title;
@@ -195,7 +210,18 @@ window.MIDP_FOLDER = function (A) {
       });
     }
     rows.sort(function (a, b) { return a.base < b.base ? -1 : 1; });
-    CACHE = { rows: rows, other: other, missing: missing, sb: sb };
+    var list = [];
+    if (sb && sb._m) {
+      var byBase = new Map(); rows.forEach(function (g) { byBase.set(g.base, g); if (g.r) byBase.set(U(g.r.base || g.r.num).replace(/-$/, ''), g); });
+      var seen = {};
+      sb._m.forEach(function (m, i) {
+        var b = m.item ? U(m.item.base || m.item.num).replace(/-$/, '') : (parseName(m.num + '.x').base || U(m.num));
+        seen[b] = (seen[b] || 0) + 1;
+        list.push({ key: 'l:' + i, idx: i + 1, num: m.num, rev: m.rev, match: m.match, r: m.item, title: m.item ? m.item.title : m.title, base: b, g: byBase.get(b) || null });
+      });
+      list.forEach(function (x) { x.listTwice = seen[x.base] > 1; });
+    }
+    CACHE = { rows: rows, other: other, missing: missing, sb: sb, list: list };
     return CACHE;
   }
   function stateOf(g) {
@@ -222,9 +248,9 @@ window.MIDP_FOLDER = function (A) {
     B.rows.forEach(function (g) {
       var dst = !g.r ? ['_Not in MIDP'] : F.ui.group.map(function (k) { return clean(DIMS[k].of(g)); });
       if (g.r && g.needs.length && F.ui.group.some(function (k) { return k === 'tower' || k === 'typ' || k === 'model'; }) && dst.some(function (x) { return /^_/.test(x); })) dst = ['_ToCheck'];
-      g.files.forEach(function (f) { out.push({ p: f[0], n: f[1], dst: dst.join('\\') }); });
+      g.files.forEach(function (f) { if (!isSorted(f[0])) out.push({ p: f[0], n: f[1], dst: dst.join('\\') }); });
     });
-    B.other.forEach(function (o) { out.push({ p: o.path, n: o.name, dst: '_Other files' }); });
+    B.other.forEach(function (o) { if (!o.sorted) out.push({ p: o.path, n: o.name, dst: '_Other files' }); });
     return out;
   }
   function tree(pl) {
@@ -364,11 +390,73 @@ window.MIDP_FOLDER = function (A) {
   }
 
   /* ---------- the view ---------- */
-  var KINDS = [['', 'All'], ['ok', '✅ Complete'], ['half', 'PDF / DWG missing'], ['needs', 'Needs Tower / Typology / Model'], ['nomidp', 'Not in MIDP'], ['dupe', 'Two copies / revisions'], ['other', 'Other files']];
+  var KINDS = [['', 'All'], ['ok', '✅ Complete'], ['half', 'PDF / DWG missing'], ['needs', 'Needs Tower / Typology / Model'], ['nomidp', 'Not in MIDP'], ['dupe', 'Doubled'],
+    ['unsorted', 'Not sorted yet'], ['sorted', 'Only in sorted'], ['both', 'Export + sorted'], ['other', 'Other files']];
+  function cntTag(g, e) {
+    var n = g ? (g.exts || {})[e] || 0 : 0, ne = g ? (g.extE || {})[e] || 0 : 0, ns = g ? (g.extS || {})[e] || 0 : 0, dbl = ne > 1 || ns > 1;
+    return '<span class="tag ' + (!n ? 'c-bad' : dbl ? 'c-warn' : 'c-ok') + '" title="' + (n ? 'Export folder: ' + ne + ' · sorted: ' + ns + (dbl ? ' — doubled' : '') : 'Not in the folder') + '">' + (n ? '✓' : '✗') + ' ' + esc(e.toUpperCase()) + (n > 1 ? ' ×' + n : '') + (dbl ? ' ⚠' : '') + '</span>';
+  }
+  function whereTag(g) {
+    if (!g || (!g.nExp && !g.nSrt)) return '<span class="tag c-bad">not in the folder</span>';
+    return (g.nExp ? '<span class="tag c-mute" title="Still in the export folder, not sorted yet">Export ' + g.nExp + '</span> ' : '') + (g.nSrt ? '<span class="tag c-info" title="In _Sorted / the target folder">Sorted ' + g.nSrt + '</span>' : '');
+  }
+  /* 📋 the submission list as the checklist: every drawing of the list, where it is, how many files */
+  function listView(B, u) {
+    var L = B.list, q = U(u.q), req = u.req, f = u.lf || '';
+    var st = function (x) { var g = x.g; return !g ? 'missing' : req.some(function (e) { return !g.exts[e]; }) ? 'part' : 'in'; };
+    var c = { '': L.length, in: 0, part: 0, missing: 0, dupe: 0, unsorted: 0, sorted: 0 };
+    L.forEach(function (x) { c[st(x)]++; if (x.listTwice || (x.g && x.g.dupe)) c.dupe++; if (x.g && x.g.nExp) c.unsorted++; if (x.g && x.g.nSrt) c.sorted++; });
+    var F2 = [['', 'All in the list'], ['in', '✅ In the folder'], ['part', 'A file missing'], ['missing', '❌ Not in the folder'], ['dupe', 'Doubled'], ['unsorted', 'Still in export folder'], ['sorted', 'In sorted']];
+    var h = '<div class="toolbar"><div class="chips">' + F2.map(function (k) { return '<button class="chip" type="button" data-act="fdlf" data-v="' + k[0] + '" aria-pressed="' + (f === k[0]) + '">' + esc(k[1]) + '<span class="c">' + (c[k[0]] || 0) + '</span></button>'; }).join('') + '</div>' +
+      '<span class="grow"></span><input type="search" id="fdQ" data-fd="q" placeholder="Search number, title, folder" value="' + esc(u.q) + '"></div>';
+    var rows = L.filter(function (x) {
+      if (f === 'dupe') return x.listTwice || (x.g && x.g.dupe);
+      if (f === 'unsorted') return x.g && x.g.nExp;
+      if (f === 'sorted') return x.g && x.g.nSrt;
+      return !f || st(x) === f;
+    });
+    if (q) rows = rows.filter(function (x) { return U([x.num, x.title, x.g ? Object.keys(x.g.paths).join(' ') : ''].join(' ')).indexOf(q) >= 0; });
+    var MT = { exact: ['Match', 'c-ok'], rev: ['Match · other rev', 'c-ok'], title: ['Title only', 'c-warn'], none: ['Not in MIDP', 'c-bad'] };
+    var cols = [
+      { k: 'idx', label: '#', w: 46, cls: 'num', text: function (x) { return String(x.idx); }, sortKey: function (x) { return x.idx; } },
+      { k: 'num', label: 'Number (in the list)', w: 250, stick: true, cls: 'mono', text: function (x) { return x.num; }, html: function (x) { return (x.r ? A.numLink(x.num, x.r.key) : esc(x.num)) + (x.listTwice ? ' <span class="tag c-warn" title="This drawing is in the submission list more than once">twice in list</span>' : ''); } },
+      { k: 'midp', label: 'MIDP', w: 130, text: function (x) { return (MT[x.match] || MT.none)[0]; }, html: function (x) { var m = MT[x.match] || MT.none; return A.tag(m[0], m[1], false, x.r ? x.r.num : ''); } },
+      { k: 'title', label: 'Title', w: 300, text: function (x) { return x.title || ''; } },
+      { k: 'in', label: 'In folder', w: 110, text: function (x) { return { in: 'Yes', part: 'File missing', missing: 'No' }[st(x)]; }, html: function (x) { var s2 = st(x); return A.tag({ in: '✓ Yes', part: 'File missing', missing: '✗ No' }[s2], { in: 'c-ok', part: 'c-warn', missing: 'c-bad' }[s2]); } }
+    ].concat(req.map(function (e) {
+      return { k: 'x' + e, label: e.toUpperCase(), w: 76, text: function (x) { return String(x.g ? x.g.exts[e] || 0 : 0); }, html: function (x) { return cntTag(x.g, e); }, sortKey: function (x) { return x.g ? x.g.exts[e] || 0 : 0; } };
+    })).concat([
+      { k: 'where', label: 'Where', w: 150, text: function (x) { return x.g ? (x.g.nExp ? 'Export ' + x.g.nExp + ' ' : '') + (x.g.nSrt ? 'Sorted ' + x.g.nSrt : '') : ''; }, html: function (x) { return whereTag(x.g); } },
+      { k: 'rev', label: 'Rev in folder', w: 90, text: function (x) { return x.g ? x.g.rev : ''; } },
+      { k: 'path', label: 'Subfolder', w: 240, text: function (x) { return x.g ? Object.keys(x.g.paths).join(', ') : ''; } }
+    ]);
+    return h + A.grid('folderlist', rows, cols, { title: 'Submission checklist', key: function (x) { return x.key; }, empty: 'Nothing here.' }).html;
+  }
   function tagSrc(v, src) {
     if (!v) return '<span class="tag c-bad">missing</span>';
     var c = { set: 'c-ok', number: 'c-info', title: 'c-info', suggested: 'c-warn', guess: 'c-warn' }[src] || 'c-mute';
     return esc(v) + (src && src !== 'set' ? ' <span class="tag ' + c + '" title="' + esc({ number: 'From the drawing number', title: 'From the title', suggested: 'Suggested — not confirmed yet', guess: 'Guessed from the number family — confirm it with ✎' }[src] || '') + '">' + esc(src) + '</span>' : '');
+  }
+  /* 🗂 the sorting box (same in both views) */
+  function sortHtml(u) {
+    var h = '';
+    var pl = plan(), tr = tree(pl);
+    h += '<div class="box fd-sort"><h2 style="margin:0 0 6px">🗂 Sort the files into folders</h2>' +
+      '<div class="toolbar"><span class="hint">Group by (in order):</span>' + Object.keys(DIMS).map(function (k) {
+        var i = u.group.indexOf(k); return '<button class="chip" type="button" data-act="fdgrp" data-v="' + k + '" aria-pressed="' + (i >= 0) + '">' + (i >= 0 ? (i + 1) + '. ' : '') + esc(DIMS[k].label) + '</button>';
+      }).join('') + '<span class="grow"></span><label class="hint"><input type="radio" name="fdmode" data-fd="mode" value="copy"' + (u.mode !== 'move' ? ' checked' : '') + '> Copy (originals stay)</label>' +
+      '<label class="hint"><input type="radio" name="fdmode" data-fd="mode" value="move"' + (u.mode === 'move' ? ' checked' : '') + '> Move</label></div>' +
+      '<div class="fd-tgt"><b>Target folder</b>' +
+        (canPick ? '<span class="fd-tg"><span class="hint">Sort now →</span> ' + (u.tname ? '<span class="tag c-ok">📂 ' + esc(u.tname) + '</span> <button class="btn small" type="button" data-act="fdtclear" title="Back to _Sorted inside the export folder">✕</button>' : '<span class="hint">_Sorted inside ' + esc(F.root) + '</span>') +
+          ' <button class="btn small" type="button" data-act="fdtarget">📂 Choose…</button></span>' : '') +
+        '<label class="fd-tg"><span class="hint">.bat file →</span> <input type="text" data-fd="tpath" value="' + esc(u.tpath) + '" placeholder="e.g. D:\\Submissions\\IFC 2026-11  (empty = _Sorted next to the .bat)"' + (pathOk(u.tpath) ? '' : ' style="border-color:var(--bad)"') + '></label>' +
+        '<span class="hint">Tip: copy the path from the File Explorer address bar. The folder is made if it does not exist.</span></div>' +
+      '<p class="hint" style="margin:4px 0">Only files still in the export folder are sorted (files already in _Sorted / the target are left alone). Example: <span class="mono">' + esc(u.tname || u.tpath || '_Sorted') + '\\' + esc((tr[0] || ['Tower1\\1BRA'])[0]) + '</span>. PDF and DWG of a drawing stay together. Drawings missing a Tower / Typology / Model go to <b>_ToCheck</b>, unknown numbers to <b>_Not in MIDP</b>, other files to <b>_Other files</b>. Nothing is deleted; files already there are skipped.</p>' +
+      '<div class="fd-tree">' + tr.slice(0, 60).map(function (t) { return '<span class="fd-node' + (/^_/.test(t[0]) ? ' warn' : '') + '">📁 ' + esc(t[0]) + ' <b>' + t[1] + '</b></span>'; }).join('') + (tr.length > 60 ? '<span class="hint">+' + (tr.length - 60) + ' more folders</span>' : '') + '</div>' +
+      '<div class="toolbar" style="margin-top:8px">' + (canPick ? '<button class="btn primary" type="button" data-act="fdsort"' + (BUSY ? ' disabled' : '') + '>🗂 Sort now (' + pl.length + ' files)</button>' : '') +
+      '<button class="btn" type="button" data-act="fdbat" title="A .bat file: put it inside the export folder and double-click it">⬇ Sorting file (.bat)</button>' +
+      '<button class="btn" type="button" data-act="fdundo" title="Puts everything back the way it was">⬇ Undo file (.bat)</button></div></div>';
+    return h;
   }
   A.VIEWS.folder = function () {
     var u = F.ui, B = F.files.length ? build() : null;
@@ -385,7 +473,7 @@ window.MIDP_FOLDER = function (A) {
     var all = B.rows, exts = {};
     F.files.forEach(function (f) { var e = parseName(f[1]).ext; if (e) exts[e] = (exts[e] || 0) + 1; });
     var counts = { '': all.length + B.other.length, other: B.other.length, dupe: 0 };
-    all.forEach(function (g) { var s = stateOf(g); counts[s] = (counts[s] || 0) + 1; if (g.dupe) counts.dupe++; });
+    all.forEach(function (g) { var s = stateOf(g); counts[s] = (counts[s] || 0) + 1; if (g.dupe) counts.dupe++; counts[g.place] = (counts[g.place] || 0) + 1; });
     // required file types + submission list
     h += '<div class="toolbar"><span class="hint">Each drawing needs:</span>' + Object.keys(exts).sort().map(function (e) {
       return '<label class="chip" style="cursor:pointer"><input type="checkbox" data-fdreq="' + esc(e) + '"' + (u.req.indexOf(e) >= 0 ? ' checked' : '') + ' style="margin-right:4px">.' + esc(e) + '<span class="c">' + exts[e] + '</span></label>';
@@ -396,7 +484,10 @@ window.MIDP_FOLDER = function (A) {
       h += '<div class="kpis fd-k"><button class="kpi" type="button" data-act="fdf" data-v="t:Ready"><span class="v" style="color:var(--ok)">' + t.Ready + '</span><span class="l">Ready</span></button>' +
         '<button class="kpi" type="button" data-act="fdf" data-v="t:Part"><span class="v" style="color:var(--warn)">' + t.Part + '</span><span class="l">In folder, a file missing</span></button>' +
         '<button class="kpi" type="button" data-act="fdf" data-v="t:Missing"><span class="v" style="color:var(--bad)">' + B.missing.length + '</span><span class="l">Missing (expected)</span></button>' +
-        '<button class="kpi" type="button" data-act="fdf" data-v="t:Extra"><span class="v">' + t.Extra + '</span><span class="l">Extra (not in the list)</span></button></div>';
+        '<button class="kpi" type="button" data-act="fdf" data-v="t:Extra"><span class="v">' + t.Extra + '</span><span class="l">Extra (not in the list)</span></button></div>' +
+        '<div class="toolbar"><div class="chips"><button class="chip" type="button" data-act="fdview" data-v="list" aria-pressed="' + (u.view === 'list') + '">📋 By submission list</button>' +
+        '<button class="chip" type="button" data-act="fdview" data-v="folder" aria-pressed="' + (u.view !== 'list') + '">📁 By folder</button></div></div>';
+      if (u.view === 'list') return h + listView(B, u) + sortHtml(u);
     }
     h += '<div class="toolbar"><div class="chips">' + KINDS.map(function (k) { return k[0] === '' || counts[k[0]] ? '<button class="chip" type="button" data-act="fdf" data-v="' + k[0] + '" aria-pressed="' + (u.f === k[0]) + '">' + esc(k[1]) + '<span class="c">' + (counts[k[0]] || 0) + '</span></button>' : ''; }).join('') +
       (/^t:/.test(u.f) ? '<button class="chip" type="button" data-act="fdf" data-v="' + esc(u.f) + '" aria-pressed="true">' + esc(u.f.slice(2)) + '</button>' : '') + '</div>' +
@@ -408,6 +499,7 @@ window.MIDP_FOLDER = function (A) {
     else if (u.f === 't:Missing') list = B.missing;
     else list = all.filter(function (g) {
       if (u.f === 'dupe') return g.dupe;
+      if (u.f === 'unsorted' || u.f === 'sorted' || u.f === 'both') return g.place === u.f;
       if (/^t:/.test(u.f)) return g.target === u.f.slice(2);
       return !u.f || stateOf(g) === u.f;
     });
@@ -429,7 +521,7 @@ window.MIDP_FOLDER = function (A) {
       { k: 'rev', label: 'Rev', w: 64, text: function (g) { return g.absent ? '' : g.rev || '—'; } },
       { k: 'set', label: 'Set', w: 80, text: function (g) { return g.set || ''; } },
       { k: 'files', label: 'Files', w: 130, text: function (g) { return Object.keys(g.exts).join(' '); }, html: function (g) {
-        return u.req.map(function (e) { return '<span class="tag ' + (g.exts[e] ? 'c-ok' : 'c-bad') + '">' + (g.exts[e] ? '✓' : '✗') + ' ' + esc(e.toUpperCase()) + '</span>'; }).join(' ') +
+        return u.req.map(function (e) { return cntTag(g, e); }).join(' ') +
           Object.keys(g.exts).filter(function (e) { return u.req.indexOf(e) < 0; }).map(function (e) { return ' <span class="tag c-mute">' + esc(e) + '</span>'; }).join(''); } },
       { k: 'midp', label: 'MIDP', w: 300, text: function (g) { return g.r ? g.title : 'Not in MIDP'; }, html: function (g) {
         if (g.absent) return '<span class="tag c-bad">Not in the folder</span> ' + esc(g.title || '');
@@ -443,28 +535,12 @@ window.MIDP_FOLDER = function (A) {
         return g.sugg ? '<span class="mono">' + esc(g.sugg.num) + '</span> <button class="btn small" type="button" data-act="fdsugg1" data-v="' + esc(g.key) + '" title="Accept the suggested model">✓</button>' : '<span class="tag c-bad">missing</span>'; } },
       { k: 'fix', label: '', w: 44, nosort: true, nofilter: true, text: function () { return ''; }, html: function (g) { return g.r && !g.absent ? '<button class="btn small" type="button" data-act="fdfix1" data-v="' + esc(g.key) + '" title="Set Tower / Typology / Model">✎</button>' : ''; } },
       { k: 'tgt', label: 'Submission', w: 100, text: function (g) { return g.target || ''; }, html: function (g) { return g.target ? A.tag(g.target === 'Part' ? 'File missing' : g.target, { Ready: 'c-ok', Part: 'c-warn', Missing: 'c-bad', Extra: 'c-mute' }[g.target]) : ''; } },
+      { k: 'where', label: 'Where', w: 150, text: function (g) { return g.absent ? '' : (g.nExp ? 'Export ' + g.nExp + ' ' : '') + (g.nSrt ? 'Sorted ' + g.nSrt : ''); }, html: function (g) { return g.absent ? '' : whereTag(g); } },
       { k: 'path', label: 'Subfolder', w: 180, text: function (g) { return Object.keys(g.paths || {}).join(', '); } }
     ];
     h += A.grid('folder', list, cols, { title: 'Folder check', key: function (g) { return g.key; }, empty: 'Nothing here.' }).html;
 
-    // sorting
-    var pl = plan(), tr = tree(pl);
-    h += '<div class="box fd-sort"><h2 style="margin:0 0 6px">🗂 Sort the files into folders</h2>' +
-      '<div class="toolbar"><span class="hint">Group by (in order):</span>' + Object.keys(DIMS).map(function (k) {
-        var i = u.group.indexOf(k); return '<button class="chip" type="button" data-act="fdgrp" data-v="' + k + '" aria-pressed="' + (i >= 0) + '">' + (i >= 0 ? (i + 1) + '. ' : '') + esc(DIMS[k].label) + '</button>';
-      }).join('') + '<span class="grow"></span><label class="hint"><input type="radio" name="fdmode" data-fd="mode" value="copy"' + (u.mode !== 'move' ? ' checked' : '') + '> Copy (originals stay)</label>' +
-      '<label class="hint"><input type="radio" name="fdmode" data-fd="mode" value="move"' + (u.mode === 'move' ? ' checked' : '') + '> Move</label></div>' +
-      '<div class="fd-tgt"><b>Target folder</b>' +
-        (canPick ? '<span class="fd-tg"><span class="hint">Sort now →</span> ' + (u.tname ? '<span class="tag c-ok">📂 ' + esc(u.tname) + '</span> <button class="btn small" type="button" data-act="fdtclear" title="Back to _Sorted inside the export folder">✕</button>' : '<span class="hint">_Sorted inside ' + esc(F.root) + '</span>') +
-          ' <button class="btn small" type="button" data-act="fdtarget">📂 Choose…</button></span>' : '') +
-        '<label class="fd-tg"><span class="hint">.bat file →</span> <input type="text" data-fd="tpath" value="' + esc(u.tpath) + '" placeholder="e.g. D:\\Submissions\\IFC 2026-11  (empty = _Sorted next to the .bat)"' + (pathOk(u.tpath) ? '' : ' style="border-color:var(--bad)"') + '></label>' +
-        '<span class="hint">Tip: copy the path from the File Explorer address bar. The folder is made if it does not exist.</span></div>' +
-      '<p class="hint" style="margin:4px 0">Example: <span class="mono">' + esc(u.tname || u.tpath || '_Sorted') + '\\' + esc((tr[0] || ['Tower1\\1BRA'])[0]) + '</span>. PDF and DWG of a drawing stay together. Drawings missing a Tower / Typology / Model go to <b>_ToCheck</b>, unknown numbers to <b>_Not in MIDP</b>, other files to <b>_Other files</b>. Nothing is deleted; files already there are skipped.</p>' +
-      '<div class="fd-tree">' + tr.slice(0, 60).map(function (t) { return '<span class="fd-node' + (/^_/.test(t[0]) ? ' warn' : '') + '">📁 ' + esc(t[0]) + ' <b>' + t[1] + '</b></span>'; }).join('') + (tr.length > 60 ? '<span class="hint">+' + (tr.length - 60) + ' more folders</span>' : '') + '</div>' +
-      '<div class="toolbar" style="margin-top:8px">' + (canPick ? '<button class="btn primary" type="button" data-act="fdsort"' + (BUSY ? ' disabled' : '') + '>🗂 Sort now (' + pl.length + ' files)</button>' : '') +
-      '<button class="btn" type="button" data-act="fdbat" title="A .bat file: put it inside the export folder and double-click it">⬇ Sorting file (.bat)</button>' +
-      '<button class="btn" type="button" data-act="fdundo" title="Puts everything back the way it was">⬇ Undo file (.bat)</button></div></div>';
-    return h;
+    return h + sortHtml(u);
   };
 
   /* ---------- buttons ---------- */
@@ -486,6 +562,8 @@ window.MIDP_FOLDER = function (A) {
       save(); A.render();
     },
     fdsort: sortNow,
+    fdview: function (el) { F.ui.view = el.getAttribute('data-v'); save(); A.render(); },
+    fdlf: function (el) { var v = el.getAttribute('data-v'); F.ui.lf = F.ui.lf === v && v ? '' : v; save(); A.render(); },
     fdtarget: function () {
       window.showDirectoryPicker({ id: 'midp-sorted', mode: 'readwrite' }).then(function (h) {
         var inside = H.root && H.root.resolve ? H.root.resolve(h) : Promise.resolve(null);

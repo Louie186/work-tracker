@@ -21,8 +21,8 @@ window.MIDP_FOLDER = function (A) {
   var S = A.S, T = A.T, esc = A.esc;
   var KEY = 'tidp-checker:folder';
   var F = Object.assign({ root: '', at: 0, files: [], prev: [], ui: {} }, A.readJSON(KEY, {}));
-  F.ui = Object.assign({ deep: true, req: ['pdf', 'dwg'], sub: '', group: ['tower', 'typ'], mode: 'copy', f: '', q: '' }, F.ui || {});
-  var H = { root: null, files: new Map(), dirs: new Map() };     // handles of the last scan (this session only)
+  F.ui = Object.assign({ deep: true, req: ['pdf', 'dwg'], sub: '', group: ['tower', 'typ'], mode: 'copy', f: '', q: '', tpath: '', tname: '', tskip: '' }, F.ui || {});
+  var H = { root: null, target: null, files: new Map(), dirs: new Map() };     // handles of the last scan (this session only)
   var sel = new Set(), CACHE = null, BUSY = false;
   var canPick = typeof window.showDirectoryPicker === 'function';
 
@@ -41,6 +41,8 @@ window.MIDP_FOLDER = function (A) {
   }
   function keepHandle(h) { return idb('readwrite', function (s) { return s.put(h, 'midp:' + pid()); }).catch(function () {}); }
   function loadHandle() { return idb('readonly', function (s) { return s.get('midp:' + pid()); }).catch(function () { return null; }); }
+  function keepTarget(h) { return idb('readwrite', function (s) { return h ? s.put(h, 'midp-target:' + pid()) : s.delete('midp-target:' + pid()); }).catch(function () {}); }
+  function loadTarget() { return H.target ? Promise.resolve(H.target) : idb('readonly', function (s) { return s.get('midp-target:' + pid()); }).then(function (h) { H.target = h || null; return H.target; }).catch(function () { return null; }); }
 
   /* ---------- reading the folder ---------- */
   function walk(dir, path, out) {
@@ -52,7 +54,7 @@ window.MIDP_FOLDER = function (A) {
           if (/^(Sort_files_|Undo_sort_).*\.bat$/i.test(name)) return next();          // our own sorting files
           return h.getFile().then(function (f) { out.push([path, name, f.size, f.lastModified]); H.files.set(path + name, h); H.dirs.set(path, dir); }).then(next, next);
         }
-        if (!F.ui.deep || /^_Sorted/i.test(name)) return next();
+        if (!F.ui.deep || /^_Sorted/i.test(name) || (F.ui.tskip && path + name + '/' === F.ui.tskip)) return next();
         return walk(h, path + name + '/', out).then(next);
       });
     };
@@ -91,7 +93,7 @@ window.MIDP_FOLDER = function (A) {
       var rel = f.webkitRelativePath || f.name, parts = rel.split('/'); parts.shift();
       var name = parts.pop(), path = parts.length ? parts.join('/') + '/' : '';
       if (!F.ui.deep && path) return;
-      if (/^_Sorted/i.test(path) || /^(Sort_files_|Undo_sort_).*\.bat$/i.test(name)) return;
+      if (/^_Sorted/i.test(path) || (F.ui.tskip && path.indexOf(F.ui.tskip) === 0) || /^(Sort_files_|Undo_sort_).*\.bat$/i.test(name)) return;
       out.push([path, name, f.size, f.lastModified]);
     });
     var root = list[0] && list[0].webkitRelativePath ? list[0].webkitRelativePath.split('/')[0] : 'folder';
@@ -230,6 +232,12 @@ window.MIDP_FOLDER = function (A) {
     return Object.keys(c).sort().map(function (k) { return [k, c[k]]; });
   }
 
+  /* where the .bat puts the files: the path you typed, or _Sorted next to the .bat */
+  function batOut() {
+    var t = String(F.ui.tpath || '').trim().replace(/^"+|"+$/g, '').replace(/[\\\/]+$/, '').replace(/\//g, '\\');
+    return t ? t.replace(/%/g, '%%') : '%~dp0_Sorted';
+  }
+  function pathOk(t) { t = String(t || '').trim().replace(/^"+|"+$/g, ''); return !t || (/^([A-Za-z]:\\|\\\\[^\\]+\\)/.test(t) && !/[<>|?*]/.test(t.slice(2))); }
   /* .bat that works on the folder it sits in — no path to type */
   function bat(pl, mode) {
     var verb = mode === 'move' ? 'move' : 'copy', done = mode === 'move' ? 'MOVED ' : 'COPIED';
@@ -237,10 +245,11 @@ window.MIDP_FOLDER = function (A) {
     var L = ['@echo off', 'rem -- Lews Tracker - MIDP Checker - sort the drawings into folders --',
       'rem Put this file INSIDE the export folder and double-click it.',
       'rem Grouping: ' + F.ui.group.map(function (k) { return DIMS[k].label; }).join(' then ') + ' - ' + (mode === 'move' ? 'MOVE' : 'COPY (originals stay)') + ' - made ' + new Date().toLocaleString(),
-      'setlocal', 'chcp 65001 >nul', 'cd /d "%~dp0"', 'set "OUT=%~dp0_Sorted"', 'if not exist "%OUT%" mkdir "%OUT%"', 'set "LOG=%OUT%\\sort-log.txt"',
+      'setlocal', 'chcp 65001 >nul', 'cd /d "%~dp0"', 'set "OUT=' + batOut() + '"', 'if not exist "%OUT%" mkdir "%OUT%"',
+      'if not exist "%OUT%" (echo Cannot open or make the target folder: %OUT% & pause & exit /b)', 'set "LOG=%OUT%\\sort-log.txt"',
       'echo ==== %date% %time% ====>>"%LOG%"', 'set /a N=0', 'set /a K=0', ''];
     pl.forEach(function (x) { L.push('call :put "' + q((x.p + x.n).replace(/\//g, '\\')) + '" "' + q(x.dst) + '"'); });
-    L.push('', 'echo.', 'echo Done: %N% files ' + (mode === 'move' ? 'moved' : 'copied') + ', %K% skipped. Details: _Sorted\\sort-log.txt', 'pause', 'exit /b', '',
+    L.push('', 'echo.', 'echo Done: %N% files ' + (mode === 'move' ? 'moved' : 'copied') + ', %K% skipped. Details: %LOG%', 'pause', 'exit /b', '',
       ':put', 'if not exist "%~1" (echo NOT FOUND   %~1>>"%LOG%" & set /a K+=1 & exit /b)', 'if not exist "%OUT%\\%~2" mkdir "%OUT%\\%~2"',
       'if exist "%OUT%\\%~2\\%~nx1" (echo ALREADY THERE   %~2\\%~nx1>>"%LOG%" & set /a K+=1 & exit /b)',
       verb + ' "%~1" "%OUT%\\%~2\\" >nul && (set /a N+=1 & echo ' + done + '   %~1  -^>  %~2>>"%LOG%")', 'exit /b', '');
@@ -249,7 +258,7 @@ window.MIDP_FOLDER = function (A) {
   function undoBat(pl, mode) {
     var q = function (s) { return s.replace(/%/g, '%%').replace(/"/g, ''); };
     var L = ['@echo off', 'rem -- Undo the sort made on ' + new Date().toLocaleString() + ' --', 'rem Put this file in the same export folder and double-click it.',
-      'setlocal', 'chcp 65001 >nul', 'cd /d "%~dp0"', 'set "OUT=%~dp0_Sorted"', ''];
+      'setlocal', 'chcp 65001 >nul', 'cd /d "%~dp0"', 'set "OUT=' + batOut() + '"', ''];
     pl.forEach(function (x) {
       var src = q((x.p + x.n).replace(/\//g, '\\')), dst = '%OUT%\\' + q(x.dst) + '\\' + q(x.n);
       L.push(mode === 'move' ? 'if exist "' + dst + '" if not exist "' + src + '" move "' + dst + '" "' + src + '" >nul' : 'if exist "' + dst + '" if exist "' + src + '" del "' + dst + '"');
@@ -268,15 +277,23 @@ window.MIDP_FOLDER = function (A) {
   function sortNow() {
     var pl = plan(), mode = F.ui.mode;
     if (!pl.length) return;
-    if (!confirm((mode === 'move' ? 'MOVE ' : 'Copy ') + pl.length + ' files into the folder “_Sorted” inside ' + F.root + '?\n\n' + (mode === 'move' ? 'The files leave their current place (an undo .bat is downloaded).' : 'The originals stay where they are.') + ' Files already in _Sorted are skipped.')) return;
-    var root;
+    var where = F.ui.tname ? 'the target folder “' + F.ui.tname + '”' : 'the folder “_Sorted” inside ' + F.root;
+    if (!confirm((mode === 'move' ? 'MOVE ' : 'Copy ') + pl.length + ' files into ' + where + '?\n\n' + (mode === 'move' ? 'The files leave their current place (an undo .bat is downloaded).' : 'The originals stay where they are.') + ' Files already there are skipped.')) return;
+    var root, tgt;
     rescan().then(function () {
       root = H.root; if (!root) throw new Error('Connect the folder first (Edge / Chrome)');
-      return root.requestPermission({ mode: 'readwrite' });
+      return F.ui.tname ? loadTarget() : null;
+    }).then(function (t) {
+      if (F.ui.tname && !t) throw new Error('Choose the target folder again');
+      tgt = t;
+      return (tgt || root).requestPermission({ mode: 'readwrite' }).then(function (p) {
+        if (p === 'granted' && mode === 'move' && tgt) return root.requestPermission({ mode: 'readwrite' });      // moving also removes from the export folder
+        return p;
+      });
     }).then(function (p) {
       if (p !== 'granted') throw new Error('Edge needs “Save changes” permission to make the folders');
       BUSY = true; A.render();
-      return root.getDirectoryHandle('_Sorted', { create: true });
+      return tgt || root.getDirectoryHandle('_Sorted', { create: true });
     }).then(function (out) {
       var n = 0, skip = 0, log = [], i = 0;
       var dirFor = function (path) { return path.split('\\').reduce(function (pr, seg) { return pr.then(function (d) { return d.getDirectoryHandle(seg, { create: true }); }); }, Promise.resolve(out)); };
@@ -300,7 +317,7 @@ window.MIDP_FOLDER = function (A) {
           .then(function (w) { return w.seek(0).then(function () { return w.write('==== ' + new Date().toLocaleString() + ' ====\r\n' + log.join('\r\n') + '\r\n'); }).then(function () { return w.close(); }); }).catch(function () {})
           .then(function () {
             if (mode === 'move') download('Undo_sort_' + T.todayIso() + '.bat', undoBat(pl, mode));
-            A.toast('📁 ' + n + ' files ' + (mode === 'move' ? 'moved' : 'copied') + ' into _Sorted' + (skip ? ' · ' + skip + ' skipped (see sort-log.txt)' : ''));
+            A.toast('📁 ' + n + ' files ' + (mode === 'move' ? 'moved' : 'copied') + ' into ' + (F.ui.tname || '_Sorted') + (skip ? ' · ' + skip + ' skipped (see sort-log.txt)' : ''));
           });
       });
     }).catch(function (e) { A.toast('⚠ ' + e.message); }).then(function () { BUSY = false; if (mode === 'move') rescan(); else A.render(); });
@@ -437,7 +454,12 @@ window.MIDP_FOLDER = function (A) {
         var i = u.group.indexOf(k); return '<button class="chip" type="button" data-act="fdgrp" data-v="' + k + '" aria-pressed="' + (i >= 0) + '">' + (i >= 0 ? (i + 1) + '. ' : '') + esc(DIMS[k].label) + '</button>';
       }).join('') + '<span class="grow"></span><label class="hint"><input type="radio" name="fdmode" data-fd="mode" value="copy"' + (u.mode !== 'move' ? ' checked' : '') + '> Copy (originals stay)</label>' +
       '<label class="hint"><input type="radio" name="fdmode" data-fd="mode" value="move"' + (u.mode === 'move' ? ' checked' : '') + '> Move</label></div>' +
-      '<p class="hint" style="margin:4px 0">Everything goes into a folder <b>_Sorted</b> inside ' + esc(F.root) + ' — e.g. <span class="mono">_Sorted\\' + esc((tr[0] || ['Tower1\\1BRA'])[0]) + '</span>. PDF and DWG of a drawing stay together. Drawings missing a Tower / Typology / Model go to <b>_ToCheck</b>, unknown numbers to <b>_Not in MIDP</b>, other files to <b>_Other files</b>. Nothing is deleted; files already there are skipped.</p>' +
+      '<div class="fd-tgt"><b>Target folder</b>' +
+        (canPick ? '<span class="fd-tg"><span class="hint">Sort now →</span> ' + (u.tname ? '<span class="tag c-ok">📂 ' + esc(u.tname) + '</span> <button class="btn small" type="button" data-act="fdtclear" title="Back to _Sorted inside the export folder">✕</button>' : '<span class="hint">_Sorted inside ' + esc(F.root) + '</span>') +
+          ' <button class="btn small" type="button" data-act="fdtarget">📂 Choose…</button></span>' : '') +
+        '<label class="fd-tg"><span class="hint">.bat file →</span> <input type="text" data-fd="tpath" value="' + esc(u.tpath) + '" placeholder="e.g. D:\\Submissions\\IFC 2026-11  (empty = _Sorted next to the .bat)"' + (pathOk(u.tpath) ? '' : ' style="border-color:var(--bad)"') + '></label>' +
+        '<span class="hint">Tip: copy the path from the File Explorer address bar. The folder is made if it does not exist.</span></div>' +
+      '<p class="hint" style="margin:4px 0">Example: <span class="mono">' + esc(u.tname || u.tpath || '_Sorted') + '\\' + esc((tr[0] || ['Tower1\\1BRA'])[0]) + '</span>. PDF and DWG of a drawing stay together. Drawings missing a Tower / Typology / Model go to <b>_ToCheck</b>, unknown numbers to <b>_Not in MIDP</b>, other files to <b>_Other files</b>. Nothing is deleted; files already there are skipped.</p>' +
       '<div class="fd-tree">' + tr.slice(0, 60).map(function (t) { return '<span class="fd-node' + (/^_/.test(t[0]) ? ' warn' : '') + '">📁 ' + esc(t[0]) + ' <b>' + t[1] + '</b></span>'; }).join('') + (tr.length > 60 ? '<span class="hint">+' + (tr.length - 60) + ' more folders</span>' : '') + '</div>' +
       '<div class="toolbar" style="margin-top:8px">' + (canPick ? '<button class="btn primary" type="button" data-act="fdsort"' + (BUSY ? ' disabled' : '') + '>🗂 Sort now (' + pl.length + ' files)</button>' : '') +
       '<button class="btn" type="button" data-act="fdbat" title="A .bat file: put it inside the export folder and double-click it">⬇ Sorting file (.bat)</button>' +
@@ -464,7 +486,21 @@ window.MIDP_FOLDER = function (A) {
       save(); A.render();
     },
     fdsort: sortNow,
-    fdbat: function () { var pl = plan(); download('Sort_files_' + F.ui.group.join('-') + '_' + T.todayIso() + '.bat', bat(pl, F.ui.mode)); A.toast('⬇ Put the .bat inside ' + F.root + ' and double-click it'); },
+    fdtarget: function () {
+      window.showDirectoryPicker({ id: 'midp-sorted', mode: 'readwrite' }).then(function (h) {
+        var inside = H.root && H.root.resolve ? H.root.resolve(h) : Promise.resolve(null);
+        return inside.then(function (rel) {
+          if (rel && !rel.length) { A.toast('That is the export folder itself — pick another folder (or make a new one inside it)'); return; }
+          H.target = h; keepTarget(h);
+          F.ui.tname = h.name; F.ui.tskip = rel && rel.length ? rel.join('/') + '/' : ''; save(); A.render();
+          A.toast('📂 Sorted files will go to “' + h.name + '”' + (F.ui.tskip ? ' (inside the export folder — it is left out when reading)' : ''));
+        });
+      }).catch(function (e) { if (e.name !== 'AbortError') A.toast('Folder not chosen: ' + e.message); });
+    },
+    fdtclear: function () { H.target = null; keepTarget(null); F.ui.tname = ''; F.ui.tskip = ''; save(); A.render(); },
+    fdbat: function () {
+      if (!pathOk(F.ui.tpath)) { A.toast('The target path should look like D:\\Submissions\\IFC or \\\\server\\share\\folder'); return; }
+      var pl = plan(); download('Sort_files_' + F.ui.group.join('-') + '_' + T.todayIso() + '.bat', bat(pl, F.ui.mode)); A.toast('⬇ Put the .bat inside ' + F.root + ' and double-click it' + (F.ui.tpath ? ' — files go to ' + F.ui.tpath : '')); },
     fdundo: function () { download('Undo_sort_' + T.todayIso() + '.bat', undoBat(plan(), F.ui.mode)); }
   });
   document.addEventListener('change', function (e) {
@@ -491,6 +527,7 @@ window.MIDP_FOLDER = function (A) {
   var css = document.createElement('style');
   css.textContent = '.fd-top{padding:10px 12px;margin-bottom:10px}.fd-k{margin:8px 0}.fd-k .kpi{cursor:pointer;text-align:left}' +
     '.fd-sort{margin-top:14px;padding:12px}.fd-tree{display:flex;flex-wrap:wrap;gap:6px;max-height:220px;overflow:auto}' +
-    '.fd-node{font-size:12px;border:1px solid var(--edge);padding:3px 8px;background:var(--panel)}.fd-node b{color:var(--accent);margin-left:4px}.fd-node.warn{border-style:dashed}';
+    '.fd-node{font-size:12px;border:1px solid var(--edge);padding:3px 8px;background:var(--panel)}.fd-node b{color:var(--accent);margin-left:4px}.fd-node.warn{border-style:dashed}' +
+    '.fd-tgt{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:6px 0;padding:8px;border:1px dashed var(--edge)}.fd-tg{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}.fd-tg input{min-width:260px;max-width:100%}';
   document.head.appendChild(css);
 };

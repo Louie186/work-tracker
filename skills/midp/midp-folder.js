@@ -472,7 +472,9 @@ window.MIDP_FOLDER = function (A) {
         Object.keys(g.exts).filter(function (e) { return req.indexOf(e) < 0; }).map(function (e) { return ' <span class="tag c-mute">' + esc(e) + '</span>'; }).join('');
       return '<tr><td class="mono">' + (r ? A.numLink(g.num, r.key) : esc(g.num)) + '</td><td>' + esc(Object.keys(g.revs).join(', ') || '—') + '</td><td>' + types + '</td>' +
         '<td>' + (r ? esc(r.title) : '<span class="tag c-bad">Not in MIDP</span>') + '</td>' +
-        '<td>' + (m && m.r ? esc([m.tower, m.typ ? T.drawingUnitKey(m.typ) : '', m.model ? m.model.split('-').pop() : ''].filter(Boolean).join(' · ')) || '<span class="tag c-bad">missing</span>' : '') + '</td>' +
+        '<td>' + (m && m.r ? esc([m.tower, m.typ ? T.drawingUnitKey(m.typ) : '', m.model ? m.model.split('-').pop() : ''].filter(Boolean).join(' · ')) +
+          (m.typSrc === 'guess' ? ' <span class="tag c-warn" title="Typology guessed from the number family — confirm it with ✎ in By drawing">guess</span>' : '') +
+          (m.needs && m.needs.length ? ' <span class="tag c-bad" title="Missing: ' + esc(m.needs.join(', ')) + '">' + esc(m.needs.join(' · ').toLowerCase()) + ' missing</span>' : '') : '') + '</td>' +
         (B.sb ? '<td>' + (listed.has(k) ? A.tag('In the list', 'c-ok') : A.tag('Not in the list', 'c-mute')) + '</td>' : '') + '</tr>';
     }).join('');
     var nd = Object.keys(groups).length;

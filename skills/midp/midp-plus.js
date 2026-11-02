@@ -46,10 +46,15 @@ window.MIDP_PLUS = function (A) {
     return c;
   }
   // a short bracketed tag ending in a number marks a unit typology: "UNIT TYPE 1 BR - Type A (Res.1)"
+  // a unit type name has a unit word (UNIT TYPE, 2 BR, SUITE, STUDIO…) and is not a level / area ("ROOF LEVEL (Res.1)")
+  var UNIT_WORD = /\b(UNIT|TYPE|SUITE|STUDIO|\d\s*-?\s*BR|BEDROOM|PENTHOUSE|APARTMENT|DUPLEX|VILLA|TOWNHOUSE|ROOM|RM|KING|TWIN)\b/i;
+  var AREA_WORD = /\b(LEVEL|ROOF|FLOOR|PODIUM|BASEMENT|LOBBY|CORRIDOR|AMENIT\w*|PARKING|PLANT|TECHNICAL|GROUND|MEZZANINE|TERRACE|CORE|STAIR\w*|FACADE|LANDSCAPE|GENERAL)\b/i;
   function typologyFromTitle(title) {
     var t = String(title || '').replace(/\s+/g, ' ');
     var m = /^(.*?\(\s*([A-Z][A-Z.]{0,11}\.?\s*\d{1,2})\s*)(\)|\s-|$)/i.exec(t);
     if (!m || /^(TYPE|OPT|OPTION|NO|NR|SHEET|PART|PHASE|STAGE|DET|DETAIL|REV|FIG|ITEM|ZONE|AREA)\b/i.test(m[2])) return '';
+    var name = m[1].split('(')[0];
+    if (!UNIT_WORD.test(name) || (AREA_WORD.test(name) && !/\b(UNIT|SUITE|STUDIO|\d\s*-?\s*BR)\b/i.test(name))) return '';
     return (m[1] + ')').replace(/\(\s*/g, '(').replace(/\s*\)/g, ')').replace(/\s*-\s*/g, ' - ').trim().toUpperCase();
   }
 
@@ -92,6 +97,7 @@ window.MIDP_PLUS = function (A) {
     // same number family as a known typology (…10100 / …30100 / …40100)
     drawings.forEach(function (d) {
       if (d.typ) return;
+      if (AREA_WORD.test(d.title || '')) return;                                   // a level / area drawing has no unit
       var f = fam[d.bld + ':' + String(d.seq).slice(-4)], ks = f ? Object.keys(f) : [];
       if (ks.length === 1) d.typ = { name: ks[0], src: 'Same number family', guess: true };
     });

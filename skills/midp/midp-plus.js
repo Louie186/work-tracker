@@ -19,13 +19,13 @@ window.MIDP_PLUS = function (A) {
   var LKEY = 'tidp-checker:lists', UKEY = 'tidp-checker:lookup', IKEY = 'tidp-checker:index';
   var GROUPS = { lookup: ['lookup', 'logic', 'ttm', 'models', 'lists'], overview: ['overview'], changes: ['changes'], subs: ['subs', 'chase'], sets: ['folder'], files: ['files'], more: ['tracker', 'checks', 'cats', 'pre'] };
   var CODES = { T1: 'Tower 1', T2: 'Tower 2', T3: 'Tower 3', T4: 'Tower 4', PD: 'Podium', XX: 'General', ZZ: 'Several buildings' };
-  var P = Object.assign({ q: '', chip: '', open: '', last: {}, f: {}, recent: [] }, A.readJSON(UKEY, {}));
+  var P = Object.assign({ q: '', chip: '', open: '', last: {}, f: {}, recent: [], pins: ['t1models', 'sv', 'late', 'nomodel'], vm: 'list', ttm: '' }, A.readJSON(UKEY, {}));
   P.f = P.f || {}; P.recent = P.recent || [];
   P.sel = new Set(); P.panel = '';
   var L = A.readJSON(LKEY, null) || { lists: [] };
   var IX = null;
 
-  function saveUI() { A.writeJSON(UKEY, { q: P.q, chip: P.chip, open: P.open, last: P.last, f: P.f, recent: P.recent }); }
+  function saveUI() { A.writeJSON(UKEY, { q: P.q, chip: P.chip, open: P.open, last: P.last, f: P.f, recent: P.recent, pins: P.pins, vm: P.vm, ttm: P.ttm }); }
   function saveLists() {
     A.writeJSON(LKEY, L);
     if (IX) writeSummary();                                      // the To Do links read the lists from the summary
@@ -206,11 +206,35 @@ window.MIDP_PLUS = function (A) {
   }
   /* ---------- understanding what you typed ("T1 L3 PLN ceiling") ---------- */
   var DOCRE = /^[A-Z0-9]{2,}(?:-[A-Z0-9]+){3,}-?$/;
-  function baseN(s) { var p = U(s).replace(/-+$/, '').split('-'); if (p.length > 5 && /^([A-Z]\d{1,3}|P\d{2})$/.test(p[p.length - 1])) p.pop(); return p.join(''); }
+  function baseN(s) {                      // number without its revision: T1, P01 … and 00 / 01 (IFC) after the sequence
+    var p = U(s).replace(/-+$/, '').split('-'), last = p[p.length - 1];
+    if (p.length > 5 && (/^([A-Z]\d{1,3}|P\d{2})$/.test(last) || (/^\d{2,3}$/.test(last) && /^\d{3,}$/.test(p[p.length - 2])))) p.pop();
+    return p.join('');
+  }
   function levelHit(d, n) {
     if (/^\d+$/.test(d.lvl) && +d.lvl === n) return true;
     return new RegExp('\\b(LEVEL|LVL|L)\\s*0*' + n + '\\b').test(U(d.title));
   }
+  /* the search language — every kind of word it understands (shown in 🧩 Search logic) */
+  var WORDS = {
+    bed: function (d, t) { var s = U((d.typ ? d.typ.name : '') + ' ' + d.title); return t.n === 0 ? /\bSTUDIO\b/.test(s) : new RegExp('\\b' + t.n + '\\s*-?\\s*(BR|BED|BEDROOM)S?\\b').test(s); },
+    cls: function (d, t) {
+      var s = U((d.typ ? d.typ.name : '') + ' ' + d.title);
+      if (t.v === 'SV') return /^SV\b|\bSERVICED\b|\bSV UNIT\b/.test(s);
+      if (t.v === 'HT') return /^HT\b|\bHT[- ]|\bHOTEL\b|\bSUITE\b|\bKING\b|\bTWIN\b|\bGUEST ?ROOM\b/.test(s);
+      if (t.v === 'RES') return !!d.typ && /UNIT TYPE/.test(s) && !/^SV\b|\bSV UNIT\b/.test(s);
+      return true;
+    },
+    st: function (d, t) {
+      return t.v === 'late' ? d.due === 'overdue' : t.v === 'soon' ? d.due === 'soon' : t.v === 'sent' ? d.sends > 0 : t.v === 'unsent' ? !d.sends :
+        t.v === 'nomodel' ? !d.model : t.v === 'notypo' ? !d.typ : t.v === 'guess' ? !!(d.model && !d.model.sure) : true;
+    }
+  };
+  var STATUS = { LATE: 'late', OVERDUE: 'late', SOON: 'soon', DUE: 'soon', SENT: 'sent', SUBMITTED: 'sent', UNSENT: 'unsent', NOTSENT: 'unsent', NOMODEL: 'nomodel', NOTYPOLOGY: 'notypo', SUGGESTED: 'guess' };
+  var STATUS_LABEL = { late: 'Late', soon: 'Due soon', sent: 'Sent', unsent: 'Not sent', nomodel: 'No model', notypo: 'No typology', guess: 'Suggested model' };
+  var SHOW = { MODELS: 'models', MODEL: 'models', TYPOLOGIES: 'typos', TYPOLOGY: 'typos', UNITS: 'typos', DRAWINGS: 'drawings' };
+  // spelling slips and short forms
+  var ALIAS = { SERVCED: 'SERVICED', SERVICE: 'SERVICED', SERVICED: 'SERVICED', SV: 'SERVICED', HT: 'HOTEL', HOTELS: 'HOTEL', RESIDENTIAL: 'RESIDENTIAL', BEDS: 'BED', BEDROOMS: 'BED', BEDROOM: 'BED' };
   function parseQ(q) {
     var raw = String(q || '').trim();
     if (!raw) return { mode: 'none', toks: [] };
@@ -228,6 +252,20 @@ window.MIDP_PLUS = function (A) {
       if (/^(GF|GR|GROUND)$/.test(w)) { toks.push({ k: 'lvlc', v: ['GF', 'GR', '00'], word: 'GROUND', label: 'Ground', src: parts[i] }); i++; continue; }
       if (/^(RF|ROOF)$/.test(w)) { toks.push({ k: 'lvlc', v: ['RF'], word: 'ROOF', label: 'Roof', src: parts[i] }); i++; continue; }
       if ((m = /^B(\d)$/.exec(w))) { toks.push({ k: 'lvlc', v: ['B' + m[1], 'B0' + m[1]], word: 'BASEMENT ' + m[1], label: 'Basement ' + m[1], src: parts[i] }); i++; continue; }
+      // "Res 2" / "Res.1" / "Akala 2" = that tower; "1BR", "2 BR", "3 bed", "studio" = bedrooms
+      if (/^(RES|RES\.|AKALA)$/.test(w) && /^\d$/.test(nx)) { toks.push({ k: 'bld', v: 'T' + nx, label: 'Tower ' + nx, src: two }); i += 2; continue; }
+      if ((m = /^RES\.?(\d)$/.exec(w))) { toks.push({ k: 'bld', v: 'T' + m[1], label: 'Tower ' + m[1], src: parts[i] }); i++; continue; }
+      if ((m = /^(\d)-?(BR|BED|BEDS|BEDROOMS?)$/.exec(w))) { toks.push({ k: 'bed', n: +m[1], label: m[1] + ' bedroom', src: parts[i] }); i++; continue; }
+      if (/^\d$/.test(w) && /^(BR|BED|BEDS|BEDROOMS?)$/.test(nx)) { toks.push({ k: 'bed', n: +w, label: w + ' bedroom', src: two }); i += 2; continue; }
+      if (/^STUDIOS?$/.test(w)) { toks.push({ k: 'bed', n: 0, label: 'Studio', src: parts[i] }); i++; continue; }
+      var al = ALIAS[w] || w;
+      if (al === 'SERVICED') { toks.push({ k: 'cls', v: 'SV', label: 'Serviced apartments', src: parts[i] }); i++; continue; }
+      if (al === 'HOTEL') { toks.push({ k: 'cls', v: 'HT', label: 'Hotel', src: parts[i] }); i++; continue; }
+      if (al === 'RESIDENTIAL') { toks.push({ k: 'cls', v: 'RES', label: 'Residential (not serviced)', src: parts[i] }); i++; continue; }
+      if (w === 'NOT' && (nx === 'SENT' || nx === 'SUBMITTED')) { toks.push({ k: 'st', v: 'unsent', label: 'Not sent', src: two }); i += 2; continue; }
+      if (w === 'NO' && (nx === 'MODEL' || nx === 'TYPOLOGY')) { var sv = nx === 'MODEL' ? 'nomodel' : 'notypo'; toks.push({ k: 'st', v: sv, label: STATUS_LABEL[sv], src: two }); i += 2; continue; }
+      if (STATUS[w]) { toks.push({ k: 'st', v: STATUS[w], label: STATUS_LABEL[STATUS[w]], src: parts[i] }); i++; continue; }
+      if (SHOW[w]) { toks.push({ k: 'show', v: SHOW[w], label: 'Show ' + SHOW[w].replace('typos', 'typologies'), src: parts[i] }); i++; continue; }
       if (blds[w] && w !== 'XX' && w !== 'ZZ') { toks.push({ k: 'bld', v: w, label: bldName(w), src: parts[i] }); i++; continue; }
       if (types[w] && w.length >= 3) { toks.push({ k: 'type', v: w, label: w + ' (type)', src: parts[i] }); i++; continue; }
       toks.push({ k: 'text', v: w, label: '“' + parts[i] + '”', src: parts[i] }); i++;
@@ -239,6 +277,8 @@ window.MIDP_PLUS = function (A) {
     if (t.k === 'lvl') return levelHit(d, t.n);
     if (t.k === 'lvlc') return t.v.indexOf(U(d.lvl)) > -1 || U(d.title).indexOf(t.word) > -1;
     if (t.k === 'type') return U(d.type) === t.v;
+    if (WORDS[t.k]) return WORDS[t.k](d, t);
+    if (t.k === 'show') return true;
     return d.hay.indexOf(t.v) > -1;
   }
   /* ---------- search builder: Building › Level › Type › Typology ---------- */
@@ -277,11 +317,26 @@ window.MIDP_PLUS = function (A) {
     if (phrase) dr = dr.map(function (d, i) { return { d: d, s: U(d.num).indexOf(phrase) === 0 ? 0 : d.hay.indexOf(phrase) > -1 ? 1 : 2, i: i }; })
       .sort(function (a, b) { return a.s - b.s || a.i - b.i; }).map(function (x) { return x.d; });
     if (!toks.length) return Object.assign({}, none, { drawings: chip || builderActive() ? dr : [] });
+    var structured = toks.some(function (t) { return t.k !== 'text' && t.k !== 'show'; }), inDr = new Set(dr.map(function (d) { return d.key; }));
+    var viaDr = function (list) { return list.filter(function (x) { return x.drawings.some(function (d) { return inDr.has(d.key); }); }); };
+    var typos = structured ? viaDr(IX.typos) : words.length ? IX.typos.filter(function (t) { return hit([t.name, Object.keys(t.blds).join(' '), Object.keys(t.models).join(' ')].join(' ').toUpperCase()); }) : [];
+    var models = structured ? viaDr(IX.models) : words.length ? IX.models.filter(function (m) { return hit([m.num, m.name, m.typ, bldName(m.tower), m.loc].join(' ').toUpperCase()); }) : [];
+    var bt = toks.filter(function (t) { return t.k === 'bld'; })[0];
+    var tcode = function (x) { x = U(x); var mm = /(?:^|\b)(?:TOWER|TOW|RES|T)\s*\.?\s*(\d)\b/.exec(x); return mm ? 'T' + mm[1] : x; };
+    var mTower = function (m) { return tcode(m.tower) || (String(m.num).split('-')[2] || ''); };
+    if (structured && bt) {
+      // a model belongs to a tower by its own Tower (model list) or its number (…-T1-…), not only through drawings
+      var onlyB = toks.every(function (t) { return t.k === 'bld' || t.k === 'show'; });
+      var own = IX.models.filter(function (m) { return mTower(m) === bt.v || U(String(m.num).split('-')[2]) === bt.v; });
+      models = (onlyB ? own : models.filter(function (m) { return !m.tower || mTower(m) === bt.v || m.drawings.every(function (d) { return U(d.bld) === bt.v; }); }))
+        .concat(onlyB ? models.filter(function (m) { return own.indexOf(m) < 0 && mTower(m) === bt.v; }) : []);
+    }
+    var show = (toks.filter(function (t) { return t.k === 'show'; })[0] || {}).v || '';
     return {
-      drawings: dr, miss: [], pq: pq,
-      typos: words.length ? IX.typos.filter(function (t) { return hit([t.name, Object.keys(t.blds).join(' '), Object.keys(t.models).join(' ')].join(' ').toUpperCase()); }) : [],
-      models: words.length ? IX.models.filter(function (m) { return hit([m.num, m.name, m.typ, bldName(m.tower), m.loc].join(' ').toUpperCase()); }) : [],
-      lists: words.length ? L.lists.filter(function (l) { return hit(U(l.name)); }) : []
+      drawings: show && show !== 'drawings' ? [] : dr, miss: [], pq: pq, show: show,
+      typos: show && show !== 'typos' ? [] : typos,
+      models: show && show !== 'models' ? [] : models,
+      lists: words.length && !show ? L.lists.filter(function (l) { return hit(U(l.name)); }) : []
     };
   }
   function addRecent(q) {
@@ -337,13 +392,123 @@ window.MIDP_PLUS = function (A) {
       '<button class="lbtn" type="button" data-act="lkclear">Clear</button></div>';
   }
 
+  /* ---------- 🧩 Search logic: ready-made searches ("recipes") — written in the same words you type ----------
+     A new idea = one more line here (and a note in UPDATES). Nothing else changes. */
+  var PACK = '1.0';
+  var UPDATES = [
+    { v: '1.0', d: '2026-11-03', t: 'First search pack: towers, levels, types, typologies, bedrooms (1BR, studio), serviced / hotel / residential, status (late, due, sent, not sent, no model, suggested), show models / typologies / drawings, “Res 2” and spelling slips like “servced”.' }
+  ];
+  var RECIPES = [
+    { id: 't1models', name: 'Tower 1 — models', q: 'T1 models', d: 'Every model used by Tower 1 drawings' },
+    { id: 't2models', name: 'Tower 2 — models', q: 'T2 models', d: 'Every model used by Tower 2 drawings' },
+    { id: 't1', name: 'Tower 1 — all drawings', q: 'T1', d: 'Drawings whose number has T1' },
+    { id: 't2', name: 'Tower 2 — all drawings', q: 'T2', d: 'Drawings whose number has T2' },
+    { id: 'bed1', name: '1-bedroom units', q: '1BR typologies', d: 'Unit types with “1 BR” (all towers)' },
+    { id: 'bed2t2', name: '2-bedroom drawings, Tower 2', q: 'T2 2BR', d: 'Drawings of 2-bedroom units in Tower 2' },
+    { id: 'bed3', name: '3-bedroom units', q: '3BR typologies', d: 'Unit types with “3 BR”' },
+    { id: 'studio', name: 'Studios', q: 'studio typologies', d: 'Unit types with “STUDIO”' },
+    { id: 'sv', name: 'Serviced apartments', q: 'serviced typologies', d: 'Unit types marked SV / serviced' },
+    { id: 'svdr', name: 'Serviced apartment drawings', q: 'serviced', d: 'Every drawing of a serviced unit' },
+    { id: 'hotel', name: 'Hotel rooms & suites', q: 'hotel typologies', d: 'Hotel units: suites, king / twin rooms, HT units' },
+    { id: 'res', name: 'Residential units (not serviced)', q: 'residential typologies', d: 'UNIT TYPE … without SV' },
+    { id: 'late', name: 'Late drawings', q: 'late', d: 'Past a stage date and not sent since' },
+    { id: 'soon', name: 'Due soon', q: 'soon', d: 'Next stage date within your “due soon” days' },
+    { id: 'unsent', name: 'Never sent', q: 'not sent', d: 'No submission yet' },
+    { id: 'nomodel', name: 'No model yet', q: 'no model', d: 'Drawings without an assigned or suggested model' },
+    { id: 'sugg', name: 'Suggested models to confirm', q: 'suggested', d: 'A model is only suggested — confirm it' }
+  ];
+  var WORD_HELP = [
+    ['Tower / building', 'T1 · Tower 2 · Res 2 · PD', 'Drawings of that building (from the number)'],
+    ['Level', 'L3 · Level 12 · GF · RF · B1', 'That level (from the number or the title)'],
+    ['Drawing type', 'PLN · SEC · DET · DRG', 'The type code in the number'],
+    ['Bedrooms', '1BR · 2 BR · 3 bed · studio', 'Unit types with that many bedrooms'],
+    ['Unit class', 'serviced · hotel · residential', 'SV units · hotel rooms / suites · UNIT TYPE without SV'],
+    ['Status', 'late · soon · sent · not sent · no model · suggested', 'Delivery and model status'],
+    ['Show', 'models · typologies · drawings', 'Show only that kind of result'],
+    ['Anything else', '1BR-A · 10100 · ceiling', 'Searched in the number, title, typology, model, lists…'],
+    ['A list of numbers', 'paste 2+ drawing numbers', 'Exactly those drawings, in that order (revision ignored)']
+  ];
+  function count(q) { var r = search(q, ''); return r.show === 'models' ? r.models.length + ' models' : r.show === 'typos' ? r.typos.length + ' unit types' : r.drawings.length + ' drawings'; }
+  A.VIEWS.logic = function () {
+    if (!IX) build();
+    var saved = L.lists.filter(function (l) { return l.kind === 'search'; });
+    var row = function (x, own) {
+      var pin = P.pins.indexOf(x.id) > -1;
+      return '<tr><td><b>' + esc(x.name) + '</b><div class="hint">' + esc(x.d || '') + '</div></td><td class="mono">' + esc(x.q) + '</td><td>' + esc(count(x.q)) + '</td>' +
+        '<td class="lg-acts"><button class="btn small primary" type="button" data-act="lgrun" data-v="' + esc(x.q) + '">Run</button>' +
+        (own ? '' : '<button class="btn small" type="button" data-act="lgpin" data-v="' + esc(x.id) + '" title="Show it on the Lookup start screen">' + (pin ? '📌 Pinned' : 'Pin') + '</button>') + '</td></tr>';
+    };
+    return '<div class="lg"><div class="box lg-box"><div class="sec-h"><h2>🧩 Ready-made searches</h2><span class="hint">Search pack ' + PACK + ' · each one is just words you could type yourself</span></div>' +
+      '<table class="lg-t"><thead><tr><th>Search</th><th>Words</th><th>Now</th><th></th></tr></thead><tbody>' + RECIPES.map(function (x) { return row(x); }).join('') + '</tbody></table></div>' +
+      '<div class="box lg-box"><div class="sec-h"><h2>⚡ Your own searches</h2><span class="hint">Any search → “⚡ Save as list” in Lookup</span></div>' +
+      (saved.length ? '<table class="lg-t"><tbody>' + saved.map(function (l) { return row({ id: l.id, name: l.name, q: l.q, d: 'Saved ' + (l.created ? new Date(l.created).toLocaleDateString() : '') }, true); }).join('') + '</tbody></table>' : '<p class="hint">None yet.</p>') + '</div>' +
+      '<div class="box lg-box"><div class="sec-h"><h2>🔤 Words the search understands</h2><span class="hint">Mix them: <span class="mono">T2 2BR serviced late</span></span></div>' +
+      '<table class="lg-t"><thead><tr><th>Kind</th><th>Examples</th><th>Finds</th></tr></thead><tbody>' + WORD_HELP.map(function (w) { return '<tr><td><b>' + esc(w[0]) + '</b></td><td class="mono">' + esc(w[1]) + '</td><td>' + esc(w[2]) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+      '<div class="box lg-box"><div class="sec-h"><h2>🆕 Updates</h2><span class="hint">Have an idea? Describe the search you want — it is added as a new pack version</span></div>' +
+      UPDATES.slice().reverse().map(function (u) { return '<p><b>Pack ' + esc(u.v) + '</b> <span class="hint">' + esc(u.d) + '</span><br>' + esc(u.t) + '</p>'; }).join('') + '</div></div>';
+  };
+
+  /* ---------- results: list or cards, Excel, copy, print ---------- */
+  function resultBar(r) {
+    var n = r.drawings.length;
+    if (!n && !r.models.length && !r.typos.length) return '';
+    return '<div class="lres"><span class="hint">' + [n && A.plural(n, 'drawing'), r.typos.length && A.plural(r.typos.length, 'unit type'), r.models.length && A.plural(r.models.length, 'model')].filter(Boolean).join(' · ') + '</span>' +
+      '<span class="grow"></span><span class="lvm"><button type="button" class="lc' + (P.vm !== 'cards' ? ' on' : '') + '" data-act="lkvm" data-v="list">≡ List</button><button type="button" class="lc' + (P.vm === 'cards' ? ' on' : '') + '" data-act="lkvm" data-v="cards">▦ Cards</button></span>' +
+      '<button class="lbtn" type="button" data-act="lkxl">⬇ Excel</button><button class="lbtn" type="button" data-act="lkcopy">📋 Copy</button><button class="lbtn" type="button" data-act="lkprint">🖨 Print</button></div>';
+  }
+  function dCard(d) {
+    var ref = 'd:' + d.key, on = P.sel.has(ref);
+    return '<div class="lcard' + (on ? ' on' : '') + '" data-act="lkopen" data-ref="' + esc(ref) + '"><input type="checkbox" data-lpick="' + esc(ref) + '"' + (on ? ' checked' : '') + ' aria-label="Pick">' +
+      '<b class="mono">' + esc(String(d.num).replace(/-+$/, '')) + '</b><span>' + esc(d.title) + '</span>' +
+      '<span class="hint">' + esc([bldName(d.bld), d.typ ? d.typ.name : '', d.model ? d.model.name + (d.model.sure ? '' : ' ?') : 'no model'].filter(Boolean).join(' · ')) + '</span>' +
+      '<span class="ltags">' + (d.rev ? '<span class="lt rv">' + esc(d.rev) + '</span>' : '') + sentTag(d) + '</span></div>';
+  }
+  function resultRows(r) {
+    var out = r.drawings.map(function (d) { return { Kind: 'Drawing', Number: String(d.num).replace(/-+$/, ''), Title: d.title, Tower: bldName(d.bld), Level: lvlName(d.lvl), Type: d.type, Typology: d.typ ? d.typ.name : '', Model: d.model ? d.model.name : '', 'Model number': d.model ? d.model.num : '', 'Last submission': d.last ? d.last.label : '', Due: d.due }; });
+    r.typos.forEach(function (t) { out.push({ Kind: 'Unit type', Number: '', Title: t.name, Tower: Object.keys(t.blds).join(', '), Typology: t.name, Model: Object.keys(t.models).join(', '), Drawings: t.drawings.length }); });
+    r.models.forEach(function (m) { out.push({ Kind: 'Model', Number: m.num, Title: m.name, Tower: bldName(m.tower), Typology: m.typ, Model: m.name, 'Model number': m.num, Drawings: m.drawings.length, Sent: m.sent }); });
+    return out;
+  }
+
+  function ttmFound() {
+    if (!IX) build();
+    var exact = new Map(), byB = new Map(), out = [], seen = {};
+    IX.drawings.forEach(function (d) { exact.set(N(String(d.num).replace(/-+$/, '')), d); if (!byB.has(baseN(d.num))) byB.set(baseN(d.num), d); });
+    (P.ttm.match(/[A-Z0-9]{2,}(?:-[A-Z0-9]+){3,}-?/gi) || []).forEach(function (n) { var d = exact.get(N(String(n).replace(/-+$/, ''))) || byB.get(baseN(n)); if (d && !seen[d.key]) { seen[d.key] = 1; out.push(d); } });
+    return out;
+  }
+  /* ---------- Tower & Model: paste a list → Tower · Typology · Model of each line ---------- */
+  A.VIEWS.ttm = function () {
+    if (!IX) build();
+    var nums = (P.ttm.match(/[A-Z0-9]{2,}(?:-[A-Z0-9]+){3,}-?/gi) || []), rows = [], exact = new Map(), byB = new Map();
+    IX.drawings.forEach(function (d) { exact.set(N(String(d.num).replace(/-+$/, '')), d); if (!byB.has(baseN(d.num))) byB.set(baseN(d.num), d); });
+    nums.forEach(function (n, i) { rows.push({ i: i + 1, n: n, d: exact.get(N(String(n).replace(/-+$/, ''))) || byB.get(baseN(n)) || null }); });
+    var found = rows.filter(function (x) { return x.d; }), need = found.filter(function (x) { return !x.d.typ || !x.d.model || !x.d.model.sure; });
+    var h = '<div class="box tt-box"><div class="sec-h"><h2>🏢 Tower · Typology · Model of a list</h2><span class="hint">Paste drawing numbers (from the MIDP, an email, Excel) — the revision is ignored</span></div>' +
+      '<textarea id="ttmText" rows="5" placeholder="Paste drawing numbers here" style="width:100%">' + esc(P.ttm) + '</textarea>' +
+      '<div class="toolbar" style="margin:6px 0 0"><span class="hint">' + rows.length + ' numbers · <b>' + found.length + '</b> found' + (rows.length - found.length ? ' · <b style="color:var(--bad)">' + (rows.length - found.length) + ' not in this MIDP</b>' : '') + (need.length ? ' · ' + need.length + ' to check' : '') + '</span>' +
+      '<span class="grow"></span>' + (need.some(function (x) { return x.d.model && !x.d.model.sure; }) ? '<button class="btn small" type="button" data-act="ttmacc">✓ Accept suggested models</button>' : '') +
+      (found.length ? '<button class="btn small" type="button" data-act="ttmxl">⬇ Excel</button><button class="btn small" type="button" data-act="ttmlist">📌 Make a list</button>' : '') +
+      (P.ttm ? '<button class="btn small" type="button" data-act="ttmclr">Clear</button>' : '') + '</div></div>';
+    if (!rows.length) return h + '<div class="box empty"><b>Paste a list above</b>Each line gets its Tower, Typology and Model from the MIDP Checker. Missing ones are flagged — fix them once with ✎ and they are kept (and in ⬇ Export assignments).</div>';
+    h += '<div class="tw"><table class="grid tt-t"><thead><tr><th>#</th><th>Number (pasted)</th><th>Title</th><th>Tower</th><th>Typology</th><th>Model</th><th></th></tr></thead><tbody>' + rows.map(function (x) {
+      var d = x.d;
+      if (!d) return '<tr><td>' + x.i + '</td><td class="mono">' + esc(x.n) + '</td><td colspan="5"><span class="tag c-bad">Not in this MIDP</span></td></tr>';
+      return '<tr><td>' + x.i + '</td><td class="mono"><a href="#" class="num-link" data-act="detail" data-key="' + esc(d.key) + '">' + esc(x.n) + '</a></td><td>' + esc(d.title) + '</td><td>' + esc(bldName(d.bld)) + '</td>' +
+        '<td>' + (d.typ ? esc(d.typ.name) + (d.typ.guess ? ' <span class="tag c-warn">guess</span>' : '') : '<span class="tag c-bad">missing</span>') + '</td>' +
+        '<td>' + (d.model ? esc(d.model.name) + (d.model.sure ? '' : ' <span class="tag c-warn">suggested</span>') : '<span class="tag c-bad">missing</span>') + '</td>' +
+        '<td><button class="btn small" type="button" data-act="ttmfix" data-v="' + esc(d.key) + '" title="Set Tower / Typology / Model">✎</button></td></tr>';
+    }).join('') + '</tbody></table></div>';
+    return h;
+  };
+
   /* ---------- 🔍 Lookup ---------- */
   A.VIEWS.lookup = function () {
     if (!IX) build();
     var r = search(P.q, P.chip), q = P.q.trim(), active = q || P.chip || builderActive();
     var h = '<div class="lk"><div class="lk-main"><div class="lsearch"><input type="search" id="lkQ" placeholder="T1 L3 PLN · 1BR-A · 10100 · or paste drawing numbers" value="' + esc(P.q) + '" autocomplete="off" autofocus></div>' +
       builderHtml();
-    if (r.pq.mode === 'words' && r.pq.toks.some(function (t) { return t.k !== 'text'; }))
+    if (r.pq.mode === 'words' && r.pq.toks.length)
       h += '<div class="lunder"><span>Understood:</span>' + r.pq.toks.map(function (t, i) { return '<span class="lu ' + t.k + '">' + esc(t.label) + '<button type="button" data-act="lktok" data-v="' + i + '" aria-label="Remove">×</button></span>'; }).join('') + '</div>';
     h += '<div class="lchips">' + CHIPS.map(function (c) { return '<button type="button" class="lc' + (P.chip === c[0] ? ' on' : '') + '" data-act="lkchip" data-v="' + c[0] + '">' + c[1] + '</button>'; }).join('') +
       (active ? '<button type="button" class="lc save" data-act="lksave" title="Keep this search as a list that updates itself">⚡ Save as list</button>' : '') + '</div>' + selBar();
@@ -356,13 +521,16 @@ window.MIDP_PLUS = function (A) {
       var g = quickGroups(), saved = L.lists.filter(function (l) { return l.kind === 'search'; });
       h += '<div class="lstart">' +
         (P.recent.length ? '<div><h4>Recent</h4>' + P.recent.map(function (x) { return '<button type="button" class="lc" data-act="lkrecent" data-v="' + esc(x) + '">' + esc(x.length > 40 ? x.slice(0, 40) + '…' : x) + '</button>'; }).join('') + '</div>' : '') +
+        '<div><h4>📌 Pinned searches</h4>' + RECIPES.filter(function (x) { return P.pins.indexOf(x.id) > -1; }).map(function (x) { return '<button type="button" class="lc" data-act="lgrun" data-v="' + esc(x.q) + '">' + esc(x.name) + '</button>'; }).join('') +
+          '<button type="button" class="lc" data-go="logic">🧩 All searches…</button></div>' +
         (saved.length ? '<div><h4>Saved searches</h4>' + saved.map(function (l) { return '<button type="button" class="lc" data-act="lsopen" data-v="' + l.id + '">⚡ ' + esc(l.name) + '</button>'; }).join('') + '</div>' : '') +
         g.slice(0, 3).map(function (x) {
           return '<div><h4>' + esc(x.title) + '</h4>' + x.items.slice(0, 14).map(function (it) { return '<button type="button" class="lc" data-act="lsopen" data-v="' + esc(it.id) + '">' + esc(it.name) + ' <i>' + it.rows.length + '</i></button>'; }).join('') + '</div>';
-        }).join('') + '<p class="lhint">Type <b>T1 L3 PLN</b>, a typology like <b>1BR-A</b>, part of a number like <b>10100</b> — or paste a list of drawing numbers. Or narrow with the four drop-downs.</p></div>';
+        }).join('') + '<p class="lhint">Type <b>T1 L3 PLN</b>, <b>T2 2BR</b>, <b>serviced</b>, <b>T1 models</b>, <b>late</b>, a typology like <b>1BR-A</b>, part of a number like <b>10100</b> — or paste a list of drawing numbers. All the words: 🧩 Search logic.</p></div>';
     } else if (!r.drawings.length && !r.typos.length && !r.models.length && !r.lists.length) h += '<div class="lempty">Nothing found — remove a chip above or use fewer words.</div>';
-    else h += group('Lists', r.lists, function (l) { return '<div class="lrow" data-act="lsopen" data-v="' + l.id + '"><span class="lid">📌 List</span><span class="ltt">' + esc(l.name) + '</span><span class="ltags"><span class="lt">' + members(l).length + ' drawings</span></span></div>'; }, 5, 'l') +
-      group('Drawings', r.drawings, dRow, 12, 'd') + group('Typologies', r.typos, tRow, 5, 't') + group('Models', r.models, mRow, 5, 'm');
+    else h += resultBar(r) + group('Lists', r.lists, function (l) { return '<div class="lrow" data-act="lsopen" data-v="' + l.id + '"><span class="lid">📌 List</span><span class="ltt">' + esc(l.name) + '</span><span class="ltags"><span class="lt">' + members(l).length + ' drawings</span></span></div>'; }, 5, 'l') +
+      (P.vm === 'cards' ? (r.drawings.length ? '<section class="lgroup"><h3><span>Drawings <b>' + r.drawings.length + '</b></span></h3><div class="lcards">' + r.drawings.slice(0, P.all_d ? 5000 : 60).map(dCard).join('') + '</div>' + (r.drawings.length > 60 && !P.all_d ? '<button class="lbtn" type="button" data-act="lkall" data-v="d">Show all</button>' : '') + '</section>' : '')
+        : group('Drawings', r.drawings, dRow, 12, 'd')) + group('Typologies', r.typos, tRow, r.show === 'typos' ? 200 : 5, 't') + group('Models', r.models, mRow, r.show === 'models' ? 200 : 5, 'm');
     return h + '</div>' + listChips() + '</div>' + panelHtml();
   };
 
@@ -479,6 +647,56 @@ window.MIDP_PLUS = function (A) {
       var l = newList(nm, r.drawings.map(function (d) { return 'd:' + d.key; })); P.open = l.id; saveUI(); A.go('lists');
     },
     lkall: function (el) { var k = 'all_' + el.getAttribute('data-v'); P[k] = !P[k]; rerender(); },
+    lgrun: function (el) { P.q = el.getAttribute('data-v'); P.chip = ''; P.f = {}; addRecent(P.q); saveUI(); A.go('lookup'); },
+    lgpin: function (el) { var id = el.getAttribute('data-v'), i = P.pins.indexOf(id); if (i > -1) P.pins.splice(i, 1); else P.pins.push(id); saveUI(); rerender(); },
+    lkvm: function (el) { P.vm = el.getAttribute('data-v'); saveUI(); rerender(); },
+    lkxl: function () {
+      var rows = resultRows(search(P.q, P.chip)); if (!rows.length) return;
+      var wb = XLSX.utils.book_new(), ws = XLSX.utils.json_to_sheet(rows); ws['!autofilter'] = { ref: ws['!ref'] };
+      XLSX.utils.book_append_sheet(wb, ws, 'Lookup'); XLSX.writeFile(wb, 'Lookup_' + (P.q || 'search').replace(/[^A-Za-z0-9]+/g, '_').slice(0, 40) + '_' + T.todayIso() + '.xlsx');
+    },
+    lkcopy: function () {
+      var rows = resultRows(search(P.q, P.chip)), keys = rows.length ? Object.keys(rows[0]) : [];
+      var txt = [keys.join('\t')].concat(rows.map(function (o) { return keys.map(function (k) { return o[k] == null ? '' : o[k]; }).join('\t'); })).join('\n');
+      (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function () { A.toast('📋 Copied ' + rows.length + ' lines — paste in Excel or an email'); }, function () { A.toast('Could not copy — use ⬇ Excel'); });
+    },
+    lkprint: function () {
+      var rows = resultRows(search(P.q, P.chip)), keys = ['Kind', 'Number', 'Title', 'Tower', 'Typology', 'Model'];
+      var w = window.open('', '_blank'); if (!w) { A.toast('Allow pop-ups to print'); return; }
+      w.document.write('<!doctype html><meta charset="utf-8"><title>Lookup — ' + esc(P.q) + '</title><style>body{font:12px Arial,sans-serif;margin:18px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #bbb;padding:4px 6px;text-align:left;vertical-align:top}th{background:#eee}h1{font-size:16px}</style>' +
+        '<h1>Lookup: ' + esc(P.q || '(all)') + '</h1><p>' + rows.length + ' lines · ' + esc(new Date().toLocaleString()) + '</p><table><tr>' + keys.map(function (k) { return '<th>' + k + '</th>'; }).join('') + '</tr>' +
+        rows.map(function (o) { return '<tr>' + keys.map(function (k) { return '<td>' + esc(o[k] == null ? '' : o[k]) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table><script>print()<\/script>');
+      w.document.close();
+    },
+    ttmclr: function () { P.ttm = ''; saveUI(); rerender(); },
+    ttmacc: function () {
+      var n = 0; ttmFound().forEach(function (d) { if (d.model && !d.model.sure) { var m = T.findModel(S.mix, d.model.num); if (m) { A.applyModel(d.key, m, true); n++; } } });
+      A.saveStore(); A.compute(); rerender(); A.toast('✓ ' + A.plural(n, 'suggested model') + ' accepted');
+    },
+    ttmxl: function () {
+      var rows = ttmFound().map(function (d) { return { Number: String(d.num).replace(/-+$/, ''), Title: d.title, Tower: bldName(d.bld), Typology: d.typ ? d.typ.name : '', 'Typology from': d.typ ? d.typ.src : '', Model: d.model ? d.model.name : '', 'Model number': d.model ? d.model.num : '', 'Model is': d.model ? (d.model.sure ? 'Assigned' : 'Suggested') : 'Missing' }; });
+      var wb = XLSX.utils.book_new(), ws = XLSX.utils.json_to_sheet(rows); ws['!autofilter'] = { ref: ws['!ref'] };
+      XLSX.utils.book_append_sheet(wb, ws, 'Tower Typology Model'); XLSX.writeFile(wb, 'Tower_Typology_Model_' + T.todayIso() + '.xlsx');
+    },
+    ttmlist: function () { var nm = askName('List ' + T.todayIso()); if (!nm) return; var l = newList(nm, ttmFound().map(function (d) { return 'd:' + d.key; })); P.open = l.id; saveUI(); A.go('lists'); },
+    ttmfix: function (el) {
+      var d = IX.byKey.get(el.getAttribute('data-v')); if (!d) return;
+      var r = A.rowByKey(d.key), v = r ? r.v : {};
+      A.openDialog('<h2 id="dlgH">✎ Tower / Typology / Model</h2><p class="hint" style="margin-top:0"><span class="mono">' + esc(d.num) + '</span><br>' + esc(d.title) + '</p>' +
+        '<datalist id="ttTy">' + IX.typos.map(function (t) { return '<option value="' + esc(t.name) + '">'; }).join('') + '</datalist><datalist id="ttMo">' + (S.store.models || []).map(function (m) { return '<option value="' + esc(m.num) + '" label="' + esc(m.name) + '">'; }).join('') + '</datalist>' +
+        '<div class="row"><label class="field"><span>Tower</span><input type="text" id="ttTw" value="' + esc(v.Tower || '') + '" placeholder="' + esc(d.bld || '') + '"></label>' +
+        '<label class="field" style="flex:1"><span>Typology</span><input type="text" id="ttTyp" list="ttTy" value="' + esc(v.Typology || '') + '" placeholder="' + esc(d.typ ? d.typ.name : '') + '"></label></div>' +
+        '<div class="row"><label class="field" style="flex:1"><span>Model number</span><input type="text" id="ttMod" list="ttMo" value="' + esc(v['Model Number'] || '') + '" placeholder="' + esc(d.model ? d.model.num + (d.model.sure ? '' : ' (suggested)') : '') + '"></label></div>' +
+        '<p class="hint">Saved in the Tracker — shows everywhere and in ⬇ Export assignments.</p>' +
+        '<div class="acts"><button class="btn" type="button" data-act="dlgclose">Cancel</button><button class="btn primary" type="button" data-act="ttmsave" data-v="' + esc(d.key) + '">Save</button></div>');
+    },
+    ttmsave: function (el) {
+      var k = el.getAttribute('data-v'), g = function (id) { return T.txt(document.getElementById(id).value); };
+      var tw = g('ttTw'), ty = g('ttTyp'), mo = g('ttMod');
+      if (mo) { var m = T.findModel(S.mix, mo); if (m) A.applyModel(k, m, true); else A.setVal(k, 'Model Number', mo, true); }
+      if (tw) A.setVal(k, 'Tower', tw, true); if (ty) A.setVal(k, 'Typology', ty, true);
+      A.saveStore(); A.compute(); A.closeDialog(); rerender(); A.toast('Saved');
+    },
     lkclear: function () { P.sel.clear(); rerender(); },
     lkopen: function (el, e) {
       if (e && e.target && (e.target.tagName === 'INPUT' || e.target.closest('.lx'))) return;
@@ -530,7 +748,9 @@ window.MIDP_PLUS = function (A) {
   /* ---------- typing, ticking, picking, dragging ---------- */
   var qT = null;
   var rT;
+  var ttT = null;
   document.addEventListener('input', function (e) {
+    if (e.target.id === 'ttmText') { clearTimeout(ttT); var t = e.target.value; ttT = setTimeout(function () { P.ttm = t; saveUI(); rerender(); }, 400); return; }
     if (e.target.id !== 'lkQ') return;
     clearTimeout(qT); clearTimeout(rT); var v = e.target.value;
     qT = setTimeout(function () { P.q = v; saveUI(); rerender(); }, 140);
@@ -648,4 +868,10 @@ window.MIDP_PLUS = function (A) {
 
   // other tabs / the project switch changed the lists
   window.addEventListener('storage', function (e) { if (e.key === LKEY) { L = A.readJSON(LKEY, null) || { lists: [] }; refreshHay(); rerender(); } });
+  var css2 = document.createElement('style');
+  css2.textContent = '.lg{display:grid;gap:12px;min-width:0}.lg-box{padding:12px;min-width:0;overflow-x:auto}.lg-t td{word-break:break-word}.tt-box{min-width:0}.lg-t{width:100%;border-collapse:collapse}.lg-t td,.lg-t th{padding:6px 8px;border-bottom:1px solid var(--edge);text-align:left;vertical-align:top;font-size:13px}.lg-acts{white-space:nowrap}.lg-acts .btn{margin-left:4px}' +
+    '.lres{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}.lres .grow{flex:1}.lvm{display:inline-flex;gap:4px}' +
+    '.lcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}.lcard{display:grid;gap:3px;padding:8px 10px;border:1px solid var(--edge);background:var(--panel);cursor:pointer;font-size:13px;position:relative}.lcard input{position:absolute;right:6px;top:6px}.lcard.on{outline:2px solid var(--accent)}.lcard:hover{background:var(--raise)}' +
+    '.tt-box{padding:12px;margin-bottom:10px}.tt-t{width:100%}.tt-t td,.tt-t th{padding:5px 8px;font-size:13px;text-align:left;vertical-align:top}';
+  document.head.appendChild(css2);
 };

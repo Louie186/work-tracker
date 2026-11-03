@@ -2197,6 +2197,14 @@ body.soft .tw th:first-child { border-top-left-radius: 14px; }
 
   function loadKind(kind, f, buf, info) {
     if (kind === 'latest' || kind === 'prev') {
+      // a newer MIDP: the one you had becomes the "previous", so Changes always compares with the last one you loaded
+      const old = S.files.latest;
+      if (kind === 'latest' && old && old.info && (old.info.name !== info.name || old.info.size !== info.size || old.info.modified !== info.modified)) {
+        S.files.prev = { name: old.name, buf: old.buf, info: old.info };
+        idbPut('prev', { info: old.info, buf: old.buf });
+        META.cur.prev = Object.assign({}, META.cur.latest || {}, { kind: 'prev' }); saveMeta();
+        setTimeout(function () { toast('Previous MIDP kept for Changes: ' + old.name); }, 1800);
+      }
       S.files[kind] = { name: f.name, buf: buf, info: info };
       if (kind === 'latest') { S.sheetNames = sheetNamesOf(buf); SET.tab = pickTab(S.sheetNames, SET.tab); }
       run();

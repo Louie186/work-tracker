@@ -554,6 +554,18 @@ window.MIDP_FOLDER = function (A) {
     });
     return { id: x.id, name: x.name, total: total, ready: ready, sent: !!x.submitted };
   }
+  /* the sets a drawing is in (for its journey): name, in the folder or not, marked as submitted */
+  window.MIDP_SETS_FOR = function (num) {
+    var b = U(T.baseOf(num) || num).replace(/-$/, ''), out = [];
+    BOX.sets.forEach(function (x) {
+      var inList = (x.lists || []).some(function (l) { return listEntriesOf(x, l).some(function (e) { return U(T.baseOf(e.num) || e.num) === b; }); });
+      if (!inList) return;
+      var inFolder = x.files.some(function (f) { var p = parseName(f[1]); return p.num && p.base === b; });
+      out.push({ name: x.name, inFolder: inFolder, sent: !!x.submitted });
+    });
+    return out;
+  };
+  function listEntriesOf(x, l) { if (l.sub) { var sb = A.subsByDate().filter(function (y) { return y.id === l.sub; })[0]; return sb ? sb.items || [] : []; } return l.entries || []; }
   window.MIDP_SETS_INFO = function () { return BOX.sets.map(setInfo).filter(function (x) { return x.total; }); };
   function setBar() {
     var h = '<div class="fd-sets"><div class="chips">' + BOX.sets.map(function (x) {

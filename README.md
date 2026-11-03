@@ -107,13 +107,24 @@ Live site: https://louie186.github.io/work-tracker/
 - Back on the website: **⬆ Bring offline work back** → pick that `.json`. It replaces that feature's data in the open project. **↶ Undo bring back** puts the old data back.
 - MIDP Checker: drop the TIDP in Files once in the offline copy — your entries, lists and corrections are already in.
 
-## MIDP Checker — the 5 tabs
+## MIDP Checker — the tabs
 
-- **Find** → **Lookup** (search anything: number, title, typology, model, L16, T1) and **Lists**
-- **Track** → Overview · Tracker · Chase list · Categories
-- **Review** → Changes · Issues · Pre-check
-- **Deliver** → Submissions · Models
-- **Files** → load the MIDP, model list and submission lists
+- **🔍 Lookup** → Search · 🧩 Search logic · Tower & Model · Model assignment · Lists
+- **📊 Overview** → one card per goal (changes, due & late, next submission, drawing sets, models, issues)
+- **🔄 Changes** → what was added / removed / revised / edited; the MIDP you had is kept as “previous” by itself
+- **📅 Submissions** → Submissions · Due & late
+- **📦 Drawing sets** → sets with their own folder and lists, checklist, folder tree, Copy / Move sorting
+- **📁 Files** → load the MIDP, model list, submission lists; export / import assignments
+- **⋯ More** → Full tracker · Issues · Categories · Pre-check
+
+### 🔍 Lookup words (🧩 Search logic lists them all)
+
+- Tower `T1` · `Res 2` · level `L3` `GF` · type `PLN` · bedrooms `1BR` `3 bed` `studio` · `serviced` `hotel` `residential` · `late` `soon` `sent` `not sent` `no model` `suggested` · `models` `typologies`.
+- Mix them: `T2 2BR`, `serviced typologies`, `T1 models`, `not sent T1 L3`. Spelling slips like `servced` work.
+- Ready-made searches (recipes) with counts; pin them to the start screen. New ideas are added as a new search-pack version.
+- Results: ≡ list or ▦ cards · ⬇ Excel · 📋 copy · 🖨 print.
+- **Tower & Model**: paste numbers → Tower · Typology · Model per line (revision ignored), ✎ fix, ✓ accept suggested, ⬇ Excel, 📌 list.
+- **📍 Journey** (drawing side panel): added / revised in which MIDP, every submission, the stage dates (next one marked), the drawing sets it is in.
 
 ### Edit many rows in Excel
 

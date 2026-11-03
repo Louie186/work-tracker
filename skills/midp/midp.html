@@ -538,6 +538,7 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
     <button class="tab" role="tab" type="button" data-go="chase" data-grp="subs">Due &amp; late<span class="n" data-count="chase">0</span></button>
     <button class="tab" role="tab" type="button" data-go="folder" data-grp="sets">Drawing sets<span class="n" data-count="folder">–</span></button>
     <button class="tab" role="tab" type="button" data-go="files" data-grp="files">Files</button>
+    <button class="tab" role="tab" type="button" data-go="arr" data-grp="files">🏢 Arrangement</button>
     <button class="tab" role="tab" type="button" data-go="tracker" data-grp="more">Full tracker<span class="n" data-count="tracker">0</span></button>
     <button class="tab" role="tab" type="button" data-go="checks" data-grp="more">Issues<span class="n" data-count="checks">0</span></button>
     <button class="tab" role="tab" type="button" data-go="cats" data-grp="more">Categories</button>
@@ -570,6 +571,7 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
 <script src="midp-folder.js"></script>
 <script src="midp-assign.js"></script>
 <script src="midp-home.js"></script>
+<script src="midp-arr.js"></script>
 <script>
 /* =====================================================================
    TIDP CORE
@@ -2344,7 +2346,7 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
     updateHeader();
     $$('.tab').forEach(function (t) { t.setAttribute('aria-selected', String(t.getAttribute('data-go') === S.view)); });
     $('#notice').innerHTML = noticeHtml();
-    const needsTidp = ['files', 'subs'].indexOf(S.view) < 0 && !S.latest;
+    const needsTidp = ['files', 'subs', 'arr'].indexOf(S.view) < 0 && !S.latest;
     $('#main').innerHTML = needsTidp ? welcomeHtml() : (VIEWS[S.view] || VIEWS.overview)();
     renderDetail();
 
@@ -4064,6 +4066,7 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
   if (typeof window.MIDP_FOLDER === 'function') window.MIDP_FOLDER(window.MIDP);
   if (typeof window.MIDP_ASSIGN === 'function') window.MIDP_ASSIGN(window.MIDP);
   if (typeof window.MIDP_HOME === 'function') window.MIDP_HOME(window.MIDP);
+  if (typeof window.MIDP_ARR === 'function') window.MIDP_ARR(window.MIDP);
 
   // inside Lew's Tracker the look is set in Settings only
   try { if (window.parent !== window) $$('.theme-seg').forEach(function (el) { el.style.display = 'none'; }); } catch (e) {}

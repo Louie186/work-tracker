@@ -17,7 +17,7 @@ window.MIDP_PLUS = function (A) {
   'use strict';
   var S = A.S, T = A.T, esc = A.esc;
   var LKEY = 'tidp-checker:lists', UKEY = 'tidp-checker:lookup', IKEY = 'tidp-checker:index';
-  var GROUPS = { lookup: ['lookup', 'logic', 'ttm', 'models', 'lists'], overview: ['overview'], changes: ['changes'], subs: ['subs', 'chase'], sets: ['folder'], files: ['files'], more: ['tracker', 'checks', 'cats', 'pre'] };
+  var GROUPS = { lookup: ['lookup', 'logic', 'ttm', 'models', 'lists'], overview: ['overview'], changes: ['changes'], subs: ['subs', 'chase'], sets: ['folder'], files: ['files', 'arr'], more: ['tracker', 'checks', 'cats', 'pre'] };
   var CODES = { T1: 'Tower 1', T2: 'Tower 2', T3: 'Tower 3', T4: 'Tower 4', PD: 'Podium', XX: 'General', ZZ: 'Several buildings' };
   var P = Object.assign({ q: '', chip: '', open: '', last: {}, f: {}, recent: [], pins: ['t1models', 'sv', 'late', 'nomodel'], vm: 'list', ttm: '' }, A.readJSON(UKEY, {}));
   P.f = P.f || {}; P.recent = P.recent || [];
@@ -594,6 +594,15 @@ window.MIDP_PLUS = function (A) {
     listCount: function () { return L.lists.length; },
     info: function (key) { if (!IX) build(); return IX && IX.byKey.get(key); },        // tower / typology / model of one drawing (Folder check)
     typoNames: function () { if (!IX) build(); return IX ? IX.typos.map(function (t) { return t.name; }) : []; },
+    lookFor: function (q) { P.q = q; P.chip = ''; P.f = {}; addRecent(q); saveUI(); A.go('lookup'); },
+    // each typology with the buildings of its drawings (Model arrangement check)
+    typos: function () {
+      if (!IX) build(); if (!IX) return [];
+      return IX.typos.map(function (t) {
+        var b = {}; t.drawings.forEach(function (d) { b[d.bld] = (b[d.bld] || 0) + 1; });
+        return { name: t.name, blds: b, n: t.drawings.length, models: Object.keys(t.models) };
+      });
+    },
     detailExtra: function (r) {
       if (!IX) build(); var d = IX && IX.byKey.get(r.key); if (!d) return '';
       var man = L.lists.filter(function (l) { return l.kind !== 'search'; });

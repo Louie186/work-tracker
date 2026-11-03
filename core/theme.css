@@ -156,3 +156,70 @@ html.lt-pixel #greetBar, html.lt-pixel .view.active { animation: none !important
 html.lt-pixel .sidebar, html.lt-pixel .mobile { background: var(--panel) !important; }
 html.lt-pixel .nav button.active, html.lt-pixel nav.mobile button.active { background: var(--accent) !important; color: var(--accent-ink) !important; }
 html.lt-pixel .nav-indicator { display: none !important; }
+
+/* ═══════════ 3. Readable 8-bit skins (class lt-retro) ═══════════
+   Retro Console (rc, dark) · Pixel Paper (pp, light) · 16-bit Arcade (a16, dark).
+   Pixel font ONLY on the big things (page titles, main tabs, big numbers);
+   lists, buttons and forms stay in a plain font. Chunky shadows only on cards
+   and the main buttons. Status colours mean the same everywhere. */
+html[data-lt-skin="rc"][data-lt-mode], html[data-lt-skin="rc"] body {
+  color-scheme: dark;
+  --bg:#16171d; --bg2:#16171d; --panel:#1f2129; --panel2:#262935; --raise:#2a2d38; --solidhead:#2a2d38;
+  --soft:#2a2d38; --soft2:#33364a; --grid:rgba(255,255,255,.025);
+  --ink:#f2efe6; --text:#f2efe6; --muted:#9a9cab; --mut:#9a9cab;
+  --line:#33364a; --line2:#454a63; --edge:#0c0d11;
+  --accent:#e4473b; --accent2:#3b82f6; --gold:#e4473b; --accent-ink:#ffffff;
+  --hd-bg:#2a2d38; --hd-fg:#f2efe6;
+  --green:#5ad16b; --red:#ff5d52; --amber:#f5c542; --blue:#63a4ff;
+  --green-soft:rgba(90,209,107,.14); --red-soft:rgba(255,93,82,.15); --amber-soft:rgba(245,197,66,.15);
+  --shadow:4px 4px 0 #0c0d11; --rt-card-b:2px solid #33364a; --rt-card-sh:4px 4px 0 #0c0d11; --rt-btn-sh:3px 3px 0 #000; --rt-r:0px; --rt-sec:#3b82f6;
+}
+html[data-lt-skin="pp"][data-lt-mode], html[data-lt-skin="pp"] body {
+  color-scheme: light;
+  --bg:#f6f0e1; --bg2:#f6f0e1; --panel:#fffaf0; --panel2:#f3ead6; --raise:#efe6d2; --solidhead:#efe6d2;
+  --soft:#efe6d2; --soft2:#e6dbc2; --grid:rgba(31,29,26,.035);
+  --ink:#1f1d1a; --text:#1f1d1a; --muted:#6f6858; --mut:#6f6858;
+  --line:#d8ccb3; --line2:#c4b493; --edge:#1f1d1a;
+  --accent:#1f1d1a; --accent2:#d9822b; --gold:#d9822b; --accent-ink:#fffaf0;
+  --hd-bg:#1f1d1a; --hd-fg:#fffaf0;
+  --green:#2e7d32; --red:#c62828; --amber:#a86b00; --blue:#1e5fa8;
+  --green-soft:#dcefd9; --red-soft:#f8dcd8; --amber-soft:#f6e6c2;
+  --shadow:4px 4px 0 #1f1d1a; --rt-card-b:2px solid #1f1d1a; --rt-card-sh:4px 4px 0 #1f1d1a; --rt-btn-sh:3px 3px 0 #b9ab8c; --rt-r:0px; --rt-sec:#d9822b;
+}
+html[data-lt-skin="a16"][data-lt-mode], html[data-lt-skin="a16"] body {
+  color-scheme: dark;
+  --bg:#141228; --bg2:#141228; --panel:#1d1a38; --panel2:#24204a; --raise:#2a2650; --solidhead:#2a2650;
+  --soft:#2a2650; --soft2:#35305f; --grid:rgba(124,92,255,.04);
+  --ink:#ecebff; --text:#ecebff; --muted:#9c98c9; --mut:#9c98c9;
+  --line:#35305f; --line2:#4a4380; --edge:#0d0b1e;
+  --accent:#ff4fa3; --accent2:#7c5cff; --gold:#ff4fa3; --accent-ink:#ffffff;
+  --hd-bg:#2a2650; --hd-fg:#ecebff;
+  --green:#3ee6a8; --red:#ff5f87; --amber:#ffc857; --blue:#5cc8ff;
+  --green-soft:rgba(62,230,168,.14); --red-soft:rgba(255,95,135,.16); --amber-soft:rgba(255,200,87,.15);
+  --shadow:0 4px 0 #0d0b1e; --rt-card-b:1px solid #35305f; --rt-card-sh:0 4px 0 #0d0b1e; --rt-btn-sh:0 3px 0 #a3206a; --rt-r:8px; --rt-sec:#7c5cff;
+}
+html.lt-retro { --px-font:"Silkscreen", ui-monospace, Consolas, monospace; --r:var(--rt-r); --r2:var(--rt-r); }
+html.lt-retro body { background:var(--bg) !important; background-image:linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px) !important; background-size:16px 16px !important; }
+html.lt-retro body:before, html.lt-retro body:after, html.lt-retro .cursor-glow, html.lt-retro #ambientBg { display:none !important; }
+html.lt-retro * { backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
+/* pixel font: only the big things */
+html.lt-retro h1, html.lt-retro .kpi .num, html.lt-retro .kpi .v, html.lt-retro #greetClock, html.lt-retro .timer-text, html.lt-retro .px, html.lt-retro .brand b {
+  font-family:var(--px-font) !important; letter-spacing:.03em; font-weight:400 !important;
+}
+/* cards: flat colour, the skin's edge and shadow */
+html.lt-retro .card, html.lt-retro .modal-card, html.lt-retro .login-card, html.lt-retro .box, html.lt-retro .iobox, html.lt-retro #greetBar {
+  background:var(--panel) !important; border:var(--rt-card-b) !important; box-shadow:var(--rt-card-sh) !important; border-radius:var(--rt-r) !important;
+}
+html.lt-retro .card .card { box-shadow:none !important; }
+/* main buttons: solid colour with a pixel shadow; the rest stay light */
+html.lt-retro .btn.primary, html.lt-retro .btn.pri, html.lt-retro .btn.gd {
+  background:var(--accent) !important; color:var(--accent-ink) !important; border:0 !important; box-shadow:var(--rt-btn-sh) !important; border-radius:var(--rt-r) !important;
+}
+html.lt-retro .btn.primary:active { transform:translate(2px,2px); box-shadow:none !important; }
+html.lt-retro .nav button.active, html.lt-retro nav.mobile button.active { background:var(--soft) !important; color:var(--ink) !important; box-shadow:inset 4px 0 0 var(--rt-sec) !important; }
+html.lt-retro ::selection { background:var(--rt-sec); color:#fff; }
+/* retro: solid, readable sidebar */
+html.lt-retro .sidebar, html.lt-retro .mobile { background: var(--panel) !important; }
+html.lt-retro .nav button { color: var(--ink) !important; opacity: 1 !important; }
+/* the intro tour is always dark: keep its text light in light themes */
+html[data-lt-mode="light"] .intro { color: #f4efe6; }

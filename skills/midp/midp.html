@@ -439,6 +439,45 @@ body.soft .btn:active, body.soft .tab:active { transform: none; }
 body.soft input, body.soft select, body.soft textarea { border-width: 1px !important; border-radius: 10px !important; }
 body.soft .tag, body.soft .rev, body.soft .blocks i, body.soft .bar { border-width: 1px; border-radius: 6px; }
 body.soft .tw th:first-child { border-top-left-radius: 14px; }
+
+/* ---------- 12. Readable 8-bit skins (Retro Console · Pixel Paper · 16-bit Arcade) ----------
+   Pixel font only on the title, main tabs and big numbers; one colour per main tab. */
+[data-skin="rc"] {
+  --bg:#16171d; --grid:rgba(255,255,255,.025); --panel:#1f2129; --raise:#2a2d38;
+  --ink:#f2efe6; --muted:#9a9cab; --edge:#33364a;
+  --accent:#e4473b; --accent-ink:#ffffff; --hd-bg:#2a2d38; --hd-fg:#f2efe6;
+  --ok:#5ad16b; --bad:#ff5d52; --warn:#f5c542; --info:#63a4ff; --odd:#c49bff;
+  --edit-bg:#2a2a22; --zebra:#1b1d24; --hl:#2c3550; --rt-sh:4px 4px 0 #0c0d11; --rt-bsh:3px 3px 0 #000; --rt-r:0px;
+  color-scheme: dark;
+}
+[data-skin="pp"] {
+  --bg:#f6f0e1; --grid:rgba(31,29,26,.035); --panel:#fffaf0; --raise:#efe6d2;
+  --ink:#1f1d1a; --muted:#6f6858; --edge:#1f1d1a;
+  --accent:#1f1d1a; --accent-ink:#fffaf0; --hd-bg:#1f1d1a; --hd-fg:#fffaf0;
+  --ok:#2e7d32; --bad:#c62828; --warn:#a86b00; --info:#1e5fa8; --odd:#7b4fa8;
+  --edit-bg:#fff4c9; --zebra:#faf4e6; --hl:#f6dfb8; --rt-sh:4px 4px 0 #1f1d1a; --rt-bsh:3px 3px 0 #b9ab8c; --rt-r:0px;
+  color-scheme: light;
+}
+[data-skin="a16"] {
+  --bg:#141228; --grid:rgba(124,92,255,.04); --panel:#1d1a38; --raise:#2a2650;
+  --ink:#ecebff; --muted:#9c98c9; --edge:#35305f;
+  --accent:#ff4fa3; --accent-ink:#ffffff; --hd-bg:#2a2650; --hd-fg:#ecebff;
+  --ok:#3ee6a8; --bad:#ff5f87; --warn:#ffc857; --info:#5cc8ff; --odd:#c07bff;
+  --edit-bg:#2a2445; --zebra:#1a1733; --hl:#3a2b6a; --rt-sh:0 4px 0 #0d0b1e; --rt-bsh:0 3px 0 #a3206a; --rt-r:8px;
+  color-scheme: dark;
+}
+body.retro .logo h1, body.retro .gtab, body.retro .kpi .v, body.retro .hm-v, body.retro .fd-k .kpi .v { font-family:"Silkscreen", ui-monospace, monospace !important; font-weight:400 !important; letter-spacing:.03em; }
+body.retro .gtab { font-size:12px !important; }
+body.retro .box, body.retro .kpi, body.retro .hm-card, body.retro .drawer { border-radius:var(--rt-r) !important; box-shadow:var(--rt-sh) !important; }
+body.retro .btn.primary { box-shadow:var(--rt-bsh) !important; border-radius:var(--rt-r) !important; }
+body.retro .btn.primary:active { transform:translate(2px,2px); box-shadow:none !important; }
+/* one colour per main tab, so you always know where you are */
+body.retro .gtab[data-v="lookup"] { --sec:#3b82f6; } body.retro .gtab[data-v="overview"] { --sec:#14b8a6; } body.retro .gtab[data-v="changes"] { --sec:#a855f7; }
+body.retro .gtab[data-v="subs"] { --sec:#f97316; } body.retro .gtab[data-v="sets"] { --sec:#22c55e; } body.retro .gtab[data-v="files"] { --sec:#eab308; } body.retro .gtab[data-v="more"] { --sec:#94a3b8; }
+body.retro .gtab[aria-selected="true"] { border-bottom-color:var(--sec) !important; color:var(--ink) !important; }
+body.retro[data-grp="lookup"] { --sec:#3b82f6; } body.retro[data-grp="overview"] { --sec:#14b8a6; } body.retro[data-grp="changes"] { --sec:#a855f7; }
+body.retro[data-grp="subs"] { --sec:#f97316; } body.retro[data-grp="sets"] { --sec:#16a34a; } body.retro[data-grp="files"] { --sec:#ca8a04; } body.retro[data-grp="more"] { --sec:#64748b; }
+body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--accent)) !important; color:#fff !important; border-color:var(--sec, var(--accent)) !important; }
 </style>
 </head>
 <body data-skin="gb" data-mode="light">
@@ -466,7 +505,7 @@ body.soft .tw th:first-child { border-top-left-radius: 14px; }
       <button class="btn small" type="button" data-act="resetview" title="Clear all filters, sorting and searches">Reset view</button>
       <div class="save" id="saveInfo"></div>
       <span class="seg theme-seg" aria-label="Colour style">
-        <button type="button" data-act="skin" data-v="gold">Classic</button><button type="button" data-act="skin" data-v="gb">Game Boy</button><button type="button" data-act="skin" data-v="arc">Arcade</button>
+        <button type="button" data-act="skin" data-v="gold">Classic</button><button type="button" data-act="skin" data-v="gb">Game Boy</button><button type="button" data-act="skin" data-v="arc">Arcade</button><button type="button" data-act="skin" data-v="rc" title="Retro Console (dark)">Console</button><button type="button" data-act="skin" data-v="pp" title="Pixel Paper (light)">Paper</button><button type="button" data-act="skin" data-v="a16" title="16-bit Arcade (dark)">16-bit</button>
       </span>
       <span class="seg theme-seg" aria-label="Light or dark">
         <button type="button" data-act="mode" data-v="light">Light</button><button type="button" data-act="mode" data-v="dark">Dark</button>
@@ -3711,11 +3750,12 @@ body.soft .tw th:first-child { border-top-left-radius: 14px; }
   function applyTheme() {
     if (window.LTTheme) {
       const e = LTTheme.get();
-      SET.skin = e.skin === 'gb' || e.skin === 'arc' ? e.skin : (e.skin === 'pastel' || e.skin === 'rose' ? e.skin : 'gold');
+      SET.skin = ['gb', 'arc', 'pastel', 'rose', 'rc', 'pp', 'a16'].indexOf(e.skin) > -1 ? e.skin : 'gold';
       SET.mode = e.mode;
     }
     document.body.setAttribute('data-skin', SET.skin); document.body.setAttribute('data-mode', SET.mode);
     document.body.classList.toggle('soft', SET.skin !== 'gb' && SET.skin !== 'arc');
+    document.body.classList.toggle('retro', ['rc', 'pp', 'a16'].indexOf(SET.skin) > -1);      // readable 8-bit
   }
   function openDetail(key) { S.detail = key; renderDetail(); const b = $('#detail'); if (b) b.scrollTop = 0; }
 

@@ -8,7 +8,7 @@
 (function () {
   'use strict';
   var ctx = null;
-  function on() { var e = window.LTTheme && LTTheme.get(); return !!(e && e.pixel && e.sound); }
+  function on() { var e = window.LTTheme && LTTheme.get(); return !!(e && (e.pixel || e.retro) && e.sound); }
   function ac() { if (!ctx) { var A = window.AudioContext || window.webkitAudioContext; if (!A) return null; ctx = new A(); } if (ctx.state === 'suspended') ctx.resume(); return ctx; }
   // notes: [frequency Hz, start s, length s]
   function play(notes, vol) {

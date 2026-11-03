@@ -605,6 +605,7 @@ window.MIDP_PLUS = function (A) {
     afterRender: function () {
       var g = groupOf(S.view);
       P.last[g] = S.view;
+      document.body.setAttribute('data-grp', g);            // the section colour (readable 8-bit skins)
       document.querySelectorAll('.gtab').forEach(function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-v') === g)); });
       document.querySelectorAll('#subTabs .tab').forEach(function (b) { b.hidden = b.getAttribute('data-grp') !== g; });
       var sub = document.getElementById('subTabs'); if (sub) sub.hidden = GROUPS[g].length < 2;

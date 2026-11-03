@@ -248,8 +248,8 @@
     el.innerHTML = '<h3>🎨 Theme <span class="small">— every tab follows it</span></h3>' +
       '<div class="lt-skins">' + tiles + '</div>' +
       '<div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">' + seg('dark', '🌙 Dark') + seg('light', '☀ Light') + seg('auto', '🖥 Auto') +
-      (fixed ? '<span class="small" style="align-self:center">' + esc(S[t.skin].name) + ' is always light</span>' : '') + '</div>' +
-      (e.pixel && LT.isOn('sounds') ? '<label class="small" style="display:block;margin-top:12px"><input type="checkbox" style="width:auto" ' + (e.sound ? 'checked' : '') + ' onchange="LTTheme.set({sound:this.checked})"> 8-bit sounds on clicks &amp; finished tasks</label>' : '') +
+      (fixed ? '<span class="small" style="align-self:center">' + esc(S[t.skin].name) + ' is always ' + fixed + '</span>' : '') + '</div>' +
+      ((e.pixel || e.retro) && LT.isOn('sounds') ? '<label class="small" style="display:block;margin-top:12px"><input type="checkbox" style="width:auto" ' + (e.sound ? 'checked' : '') + ' onchange="LTTheme.set({sound:this.checked})"> 8-bit sounds on clicks &amp; finished tasks</label>' : '') +
       '<p class="small" style="margin-top:10px">Every tab follows this. Text size and spacing are in Appearance below.</p>';
   };
 

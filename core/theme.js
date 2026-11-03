@@ -7,6 +7,9 @@
    • Pages read it with LTTheme.get() and react with LTTheme.onChange(fn).
    • The colours live in core/theme.css (one block per skin).
    Skins:  gold (default) · pastel · rose · gb (8-bit Game Boy) · arc (8-bit Arcade)
+           rc (Retro Console, dark) · pp (Pixel Paper, light) · a16 (16-bit Arcade, dark)
+           — the last three are "readable 8-bit": pixel font only on titles, main tabs
+             and big numbers (class lt-retro), everything else plain.
    Modes:  dark · light   (pastel and rose are always light)
    ═══════════════════════════════════════════════════════════════════ */
 (function () {
@@ -17,7 +20,10 @@
     pastel: { name: 'Pastel',            swatch: ['#a08050', '#f0ede6'], pixel: false, modes: false, fixed: 'light' },
     rose:   { name: 'Rose (Melliea)',    swatch: ['#c8748e', '#fdf0f3'], pixel: false, modes: false, fixed: 'light' },
     gb:     { name: '8-bit Game Boy',    swatch: ['#8fd16a', '#141a12'], pixel: true,  modes: true },
-    arc:    { name: '8-bit Arcade',      swatch: ['#ff3d7f', '#0e0b1c'], pixel: true,  modes: true }
+    arc:    { name: '8-bit Arcade',      swatch: ['#ff3d7f', '#0e0b1c'], pixel: true,  modes: true },
+    rc:     { name: '🎮 Retro Console',   swatch: ['#e4473b', '#16171d'], pixel: false, retro: true, modes: false, fixed: 'dark' },
+    pp:     { name: '📜 Pixel Paper',     swatch: ['#d9822b', '#f6f0e1'], pixel: false, retro: true, modes: false, fixed: 'light' },
+    a16:    { name: '🕹 16-bit Arcade',    swatch: ['#ff4fa3', '#141228'], pixel: false, retro: true, modes: false, fixed: 'dark' }
   };
   var DEFAULT = { skin: 'gold', mode: 'dark', auto: false, sound: true };
   var listeners = [];
@@ -39,7 +45,7 @@
     var mode = t.mode;
     if (t.auto && mq) mode = mq.matches ? 'dark' : 'light';
     if (s.fixed) mode = s.fixed;
-    return { skin: t.skin, mode: mode, pixel: !!s.pixel, auto: !!t.auto, sound: t.sound !== false };
+    return { skin: t.skin, mode: mode, pixel: !!s.pixel, retro: !!s.retro, auto: !!t.auto, sound: t.sound !== false };
   }
   function apply() {
     var e = effective();
@@ -47,6 +53,7 @@
     h.setAttribute('data-lt-skin', e.skin);
     h.setAttribute('data-lt-mode', e.mode);
     h.classList.toggle('lt-pixel', e.pixel);
+    h.classList.toggle('lt-retro', e.retro);
     h.style.colorScheme = e.mode;
     for (var i = 0; i < listeners.length; i++) { try { listeners[i](e); } catch (err) { console.warn('theme listener', err); } }
     return e;

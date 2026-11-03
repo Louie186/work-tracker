@@ -245,6 +245,8 @@ window.MIDP_ARR = function (A) {
           if (c && c.tier && c.type !== 'Technical') { x.tier = c.tier; break; }
         }
       });
+      R.stack = R.stack || {}; R.stack[b] = {};
+      rows.forEach(function (x) { if (x.units.length) R.stack[b][x.code] = x.units.map(function (u) { return [u.name, u.pos]; }); });
       rows.slice().reverse().forEach(function (x) {      // bottom to top, as in the form
         R.levels.push({ b: b, code: x.code, name: x.name, type: x.type, tier: x.tier, fm: x.fm, fmName: x.fmName, h: x.h === '' ? '' : x.h });
       });
@@ -311,6 +313,7 @@ window.MIDP_ARR = function (A) {
       if (!u) { u = have[p.b + ':' + N(p.unit)] = { b: p.b, name: p.unit, cls: p.cls, br: bedrooms(p.unit), model: '', midp: '', alias: '', note: '', fromPlace: true }; R.units.push(u); }
       p.unit = u.name;
     });
+    if (R.stack) Object.keys(R.stack).forEach(function (b) { Object.keys(R.stack[b]).forEach(function (c) { R.stack[b][c].forEach(function (x) { var u = have[b + ':' + N(x[0])]; if (u) x[0] = u.name; }); }); });
     // checks: levels in the Levels sheet, ranges across technical / amenities floors, units without placement
     var lv = {}; R.levels.forEach(function (l) { lv[l.b + ':' + l.code] = l; });
     R.place.forEach(function (p) {
@@ -525,7 +528,7 @@ window.MIDP_ARR = function (A) {
   function toolbar() {
     return '<div class="toolbar ar-tb"><label class="btn primary">⬆ ' + (D ? 'Import a newer file' : 'Import arrangement') + '<input type="file" id="arFile" accept=".xlsx,.xlsm,.xls" hidden></label>' +
       '<button class="btn" type="button" data-act="arblank" title="The empty standard form with drop-downs and help">⬇ Blank template</button>' +
-      (D ? '<button class="btn" type="button" data-act="arxsaved" title="This arrangement as the standard form (with your MIDP matches)">⬇ Save as the standard form</button><span class="grow"></span>' +
+      (D ? '<button class="btn" type="button" data-go="stack">🏙 Stacking view</button><button class="btn" type="button" data-act="arxsaved" title="This arrangement as the standard form (with your MIDP matches)">⬇ Save as the standard form</button><span class="grow"></span>' +
         '<button class="btn small ' + (UI.del ? 'danger' : '') + '" type="button" data-act="ardel">' + (UI.del ? 'Click again to remove' : '🗑 Remove') + '</button>' : '') + '</div>';
   }
   function view() {
@@ -611,6 +614,20 @@ window.MIDP_ARR = function (A) {
     return h;
   }
   A.VIEWS.arr = view;
+
+  /* ---------- the units on one floor, South façade → North (stacking view) ---------- */
+  function posKey(p) { var m = /^([SN])(\d+)$/.exec(String(p || '')); return m ? (m[1] === 'S' ? 0 : 1000) + +m[2] : 5000; }
+  function layout(b, code) {
+    if (!D) return [];
+    var out = [];
+    if (D.stack && D.stack[b] && D.stack[b][code]) out = D.stack[b][code].map(function (x) { return { name: x[0], pos: x[1] }; });
+    else D.place.forEach(function (p) {
+      if (p.b !== b || p.lv.indexOf(code) < 0) return;
+      var ps = String(p.pos || '').split(/\s*,\s*/).filter(Boolean);
+      for (var i = 0; i < p.per; i++) out.push({ name: p.unit, pos: ps[i] || '' });
+    });
+    return out.sort(function (a, c) { return posKey(a.pos) - posKey(c.pos) || a.name.localeCompare(c.name, undefined, { numeric: true }); });
+  }
 
   /* ---------- for the Lookup: each unit type with its levels, tiers and floor models ---------- */
   function arrUnits() {
@@ -729,6 +746,7 @@ window.MIDP_ARR = function (A) {
   ext.arrangement = function () { return D; };            // for later phases (Lookup, stacking view)
   ext.arrUnits = arrUnits;                                 // the Lookup: levels, tier, class of each MIDP typology
   ext.arrCompare = compare;
+  ext.arrLayout = layout;
 
   // for the tests
   window.MIDP_ARR_API = { parse: parse, expandLevels: expandLevels, compress: compress, sig: sig, unitRows: unitRows, check: function () { check(); return CK; }, get: function () { return D; } };

@@ -530,6 +530,7 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
     <button class="tab" role="tab" type="button" data-go="lookup" data-grp="lookup">Search</button>
     <button class="tab" role="tab" type="button" data-go="logic" data-grp="lookup">🧩 Search logic</button>
     <button class="tab" role="tab" type="button" data-go="ttm" data-grp="lookup">Tower &amp; Model</button>
+    <button class="tab" role="tab" type="button" data-go="stack" data-grp="lookup">🏙 Stacking</button>
     <button class="tab" role="tab" type="button" data-go="models" data-grp="lookup">Model assignment<span class="n" data-count="models">0%</span></button>
     <button class="tab" role="tab" type="button" data-go="lists" data-grp="lookup">Lists<span class="n" data-count="lists">0</span></button>
     <button class="tab" role="tab" type="button" data-go="overview" data-grp="overview">Overview</button>
@@ -572,6 +573,7 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
 <script src="midp-assign.js"></script>
 <script src="midp-home.js"></script>
 <script src="midp-arr.js"></script>
+<script src="midp-stack.js"></script>
 <script>
 /* =====================================================================
    TIDP CORE
@@ -2346,7 +2348,7 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
     updateHeader();
     $$('.tab').forEach(function (t) { t.setAttribute('aria-selected', String(t.getAttribute('data-go') === S.view)); });
     $('#notice').innerHTML = noticeHtml();
-    const needsTidp = ['files', 'subs', 'arr'].indexOf(S.view) < 0 && !S.latest;
+    const needsTidp = ['files', 'subs', 'arr', 'stack'].indexOf(S.view) < 0 && !S.latest;
     $('#main').innerHTML = needsTidp ? welcomeHtml() : (VIEWS[S.view] || VIEWS.overview)();
     renderDetail();
 
@@ -4067,6 +4069,7 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
   if (typeof window.MIDP_ASSIGN === 'function') window.MIDP_ASSIGN(window.MIDP);
   if (typeof window.MIDP_HOME === 'function') window.MIDP_HOME(window.MIDP);
   if (typeof window.MIDP_ARR === 'function') window.MIDP_ARR(window.MIDP);
+  if (typeof window.MIDP_STACK === 'function') window.MIDP_STACK(window.MIDP);
 
   // inside Lew's Tracker the look is set in Settings only
   try { if (window.parent !== window) $$('.theme-seg').forEach(function (el) { el.style.display = 'none'; }); } catch (e) {}

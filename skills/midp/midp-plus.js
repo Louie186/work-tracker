@@ -17,7 +17,7 @@ window.MIDP_PLUS = function (A) {
   'use strict';
   var S = A.S, T = A.T, esc = A.esc;
   var LKEY = 'tidp-checker:lists', UKEY = 'tidp-checker:lookup', IKEY = 'tidp-checker:index';
-  var GROUPS = { find: ['lookup', 'lists'], track: ['overview', 'tracker', 'chase', 'cats'], review: ['changes', 'checks', 'pre'], deliver: ['subs', 'folder', 'models'], files: ['files'] };
+  var GROUPS = { lookup: ['lookup', 'logic', 'ttm', 'models', 'lists'], overview: ['overview'], changes: ['changes'], subs: ['subs', 'chase'], sets: ['folder'], files: ['files'], more: ['tracker', 'checks', 'cats', 'pre'] };
   var CODES = { T1: 'Tower 1', T2: 'Tower 2', T3: 'Tower 3', T4: 'Tower 4', PD: 'Podium', XX: 'General', ZZ: 'Several buildings' };
   var P = Object.assign({ q: '', chip: '', open: '', last: {}, f: {}, recent: [] }, A.readJSON(UKEY, {}));
   P.f = P.f || {}; P.recent = P.recent || [];
@@ -441,12 +441,15 @@ window.MIDP_PLUS = function (A) {
       document.querySelectorAll('#subTabs .tab').forEach(function (b) { b.hidden = b.getAttribute('data-grp') !== g; });
       var sub = document.getElementById('subTabs'); if (sub) sub.hidden = GROUPS[g].length < 2;
       var cnt = function (k) { var el = document.querySelector('[data-count="' + k + '"]'); return el ? el.textContent : ''; };
-      var gt = document.getElementById('gn-track'), gr = document.getElementById('gn-review');
-      if (gt) { var c = +cnt('chase') || 0; gt.textContent = c ? c : ''; gt.hidden = !c; }
-      if (gr) { var c2 = (+cnt('checks') || 0); gr.textContent = c2 ? c2 : ''; gr.hidden = !c2; }
+      [['gn-subs', 'chase'], ['gn-changes', 'changes'], ['gn-more', 'checks']].forEach(function (x) {
+        var el = document.getElementById(x[0]); if (!el) return; var c = +cnt(x[1]) || 0; el.textContent = c ? c : ''; el.hidden = !c;
+      });
+      // a view that does not exist yet stays hidden (its tab appears once the module that draws it is loaded)
+      document.querySelectorAll('#subTabs .tab').forEach(function (b) { if (!A.VIEWS[b.getAttribute('data-go')]) b.hidden = true; });
+      if (sub) sub.hidden = Array.prototype.filter.call(sub.querySelectorAll('.tab'), function (b) { return !b.hidden; }).length < 2;
     }
   };
-  function groupOf(v) { var g = 'find'; Object.keys(GROUPS).forEach(function (k) { if (GROUPS[k].indexOf(v) > -1) g = k; }); return g; }
+  function groupOf(v) { var g = 'lookup'; Object.keys(GROUPS).forEach(function (k) { if (GROUPS[k].indexOf(v) > -1) g = k; }); return g; }
 
   /* ---------- actions ---------- */
   function rerender() { A.render(); }

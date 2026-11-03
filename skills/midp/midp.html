@@ -479,26 +479,30 @@ body.soft .tw th:first-child { border-top-left-radius: 14px; }
 
   <!-- ===== Navigation: 5 sections, the views of the open section underneath ===== -->
   <nav class="gnav" aria-label="Sections">
-    <button class="gtab" type="button" data-act="grp" data-v="find">Find</button>
-    <button class="gtab" type="button" data-act="grp" data-v="track">Track<span class="gn" id="gn-track"></span></button>
-    <button class="gtab" type="button" data-act="grp" data-v="review">Review<span class="gn" id="gn-review"></span></button>
-    <button class="gtab" type="button" data-act="grp" data-v="deliver">Deliver</button>
-    <button class="gtab" type="button" data-act="grp" data-v="files">Files<span class="dot" id="dirtyDot" title="Changes not exported yet" hidden></span></button>
+    <button class="gtab" type="button" data-act="grp" data-v="lookup">🔍 Lookup</button>
+    <button class="gtab" type="button" data-act="grp" data-v="overview">📊 Overview</button>
+    <button class="gtab" type="button" data-act="grp" data-v="changes">🔄 Changes<span class="gn" id="gn-changes"></span></button>
+    <button class="gtab" type="button" data-act="grp" data-v="subs">📅 Submissions<span class="gn" id="gn-subs"></span></button>
+    <button class="gtab" type="button" data-act="grp" data-v="sets">📦 Drawing sets</button>
+    <button class="gtab" type="button" data-act="grp" data-v="files">📁 Files<span class="dot" id="dirtyDot" title="Changes not exported yet" hidden></span></button>
+    <button class="gtab" type="button" data-act="grp" data-v="more">⋯ More<span class="gn" id="gn-more"></span></button>
   </nav>
   <nav class="tabs" role="tablist" aria-label="Views" id="subTabs">
-    <button class="tab" role="tab" type="button" data-go="lookup" data-grp="find">Lookup</button>
-    <button class="tab" role="tab" type="button" data-go="lists" data-grp="find">Lists<span class="n" data-count="lists">0</span></button>
-    <button class="tab" role="tab" type="button" data-go="overview" data-grp="track">Overview</button>
-    <button class="tab" role="tab" type="button" data-go="tracker" data-grp="track">Tracker<span class="n" data-count="tracker">0</span></button>
-    <button class="tab" role="tab" type="button" data-go="chase" data-grp="track">Chase list<span class="n" data-count="chase">0</span></button>
-    <button class="tab" role="tab" type="button" data-go="cats" data-grp="track">Categories</button>
-    <button class="tab" role="tab" type="button" data-go="changes" data-grp="review">Changes<span class="n" data-count="changes">0</span></button>
-    <button class="tab" role="tab" type="button" data-go="checks" data-grp="review">Issues<span class="n" data-count="checks">0</span></button>
-    <button class="tab" role="tab" type="button" data-go="pre" data-grp="review">Pre-check<span class="n" data-count="pre">–</span></button>
-    <button class="tab" role="tab" type="button" data-go="subs" data-grp="deliver">Submissions<span class="n" data-count="subs">0</span></button>
-    <button class="tab" role="tab" type="button" data-go="folder" data-grp="deliver">📁 Folder check<span class="n" data-count="folder">–</span></button>
-    <button class="tab" role="tab" type="button" data-go="models" data-grp="deliver">Models<span class="n" data-count="models">0%</span></button>
+    <button class="tab" role="tab" type="button" data-go="lookup" data-grp="lookup">Search</button>
+    <button class="tab" role="tab" type="button" data-go="logic" data-grp="lookup">🧩 Search logic</button>
+    <button class="tab" role="tab" type="button" data-go="ttm" data-grp="lookup">Tower &amp; Model</button>
+    <button class="tab" role="tab" type="button" data-go="models" data-grp="lookup">Model assignment<span class="n" data-count="models">0%</span></button>
+    <button class="tab" role="tab" type="button" data-go="lists" data-grp="lookup">Lists<span class="n" data-count="lists">0</span></button>
+    <button class="tab" role="tab" type="button" data-go="overview" data-grp="overview">Overview</button>
+    <button class="tab" role="tab" type="button" data-go="changes" data-grp="changes">Changes<span class="n" data-count="changes">0</span></button>
+    <button class="tab" role="tab" type="button" data-go="subs" data-grp="subs">Submissions<span class="n" data-count="subs">0</span></button>
+    <button class="tab" role="tab" type="button" data-go="chase" data-grp="subs">Due &amp; late<span class="n" data-count="chase">0</span></button>
+    <button class="tab" role="tab" type="button" data-go="folder" data-grp="sets">Drawing sets<span class="n" data-count="folder">–</span></button>
     <button class="tab" role="tab" type="button" data-go="files" data-grp="files">Files</button>
+    <button class="tab" role="tab" type="button" data-go="tracker" data-grp="more">Full tracker<span class="n" data-count="tracker">0</span></button>
+    <button class="tab" role="tab" type="button" data-go="checks" data-grp="more">Issues<span class="n" data-count="checks">0</span></button>
+    <button class="tab" role="tab" type="button" data-go="cats" data-grp="more">Categories</button>
+    <button class="tab" role="tab" type="button" data-go="pre" data-grp="more">Pre-check<span class="n" data-count="pre">–</span></button>
   </nav>
 
   <div id="notice"></div>
@@ -526,6 +530,7 @@ body.soft .tw th:first-child { border-top-left-radius: 14px; }
 <script src="midp-issues.js"></script>
 <script src="midp-folder.js"></script>
 <script src="midp-assign.js"></script>
+<script src="midp-home.js"></script>
 <script>
 /* =====================================================================
    TIDP CORE
@@ -4005,11 +4010,12 @@ body.soft .tw th:first-child { border-top-left-radius: 14px; }
     mInfo: mInfo, isAssignable: isAssignable, itemsNow: itemsNow, stagesNow: stagesNow, subHead: subHead, fmtDay: fmtDay, esc: esc, tag: tag, toast: toast,
     revHtml: revHtml, dueCell: dueCell, dueStage: dueStage, readJSON: readJSON, writeJSON: writeJSON,
     grid: grid, chip: chip, numLink: numLink, catText: catText, plural: plural, openDialog: openDialog, closeDialog: closeDialog, saveStore: saveStore, compute: compute,
-    setVal: setVal, applyModel: applyModel, subsByDate: subsByDate };
+    setVal: setVal, applyModel: applyModel, subsByDate: subsByDate, readListFile: readListFile };
   if (typeof window.MIDP_PLUS === 'function') window.MIDP_PLUS(window.MIDP);
   if (typeof window.MIDP_ISSUES === 'function') window.MIDP_ISSUES(window.MIDP);
   if (typeof window.MIDP_FOLDER === 'function') window.MIDP_FOLDER(window.MIDP);
   if (typeof window.MIDP_ASSIGN === 'function') window.MIDP_ASSIGN(window.MIDP);
+  if (typeof window.MIDP_HOME === 'function') window.MIDP_HOME(window.MIDP);
 
   // inside Lew's Tracker the look is set in Settings only
   try { if (window.parent !== window) $$('.theme-seg').forEach(function (el) { el.style.display = 'none'; }); } catch (e) {}

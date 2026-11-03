@@ -20,13 +20,29 @@ window.MIDP_FOLDER = function (A) {
   'use strict';
   var S = A.S, T = A.T, esc = A.esc;
   var KEY = 'tidp-checker:folder';
-  var F = Object.assign({ root: '', at: 0, files: [], prev: [], ui: {} }, A.readJSON(KEY, {}));
-  F.ui = Object.assign({ deep: true, req: ['pdf', 'dwg'], sub: '', group: ['tower', 'typ'], mode: 'copy', f: '', q: '', view: 'list', lf: '', tpath: '', tname: '', tskip: '' }, F.ui || {});
+  // 📦 Drawing sets: each set has its own folder, lists, settings and results. F = the open set.
+  var BOX = A.readJSON(KEY, {});
+  if (!BOX.sets) {                                   // the Folder check you used before becomes "Set 1"
+    var old = BOX; BOX = { sets: [], cur: '' };
+    if (old.root || (old.files && old.files.length) || old.ui) {
+      old.id = 'set1'; old.name = 'Set 1';
+      old.lists = old.ui && old.ui.sub ? [{ id: 'l1', name: 'Recorded submission', sub: old.ui.sub }] : [];
+      BOX.sets.push(old);
+    }
+  }
+  function fixSet(x) {
+    x = Object.assign({ id: 's' + Date.now().toString(36), name: 'New set', date: '', root: '', at: 0, files: [], lists: [], ui: {} }, x);
+    x.ui = Object.assign({ deep: true, req: ['pdf', 'dwg'], group: ['tower', 'typ'], mode: 'copy', f: '', q: '', view: 'list', lf: '', tpath: '', tname: '', tskip: '' }, x.ui || {});
+    return x;
+  }
+  BOX.sets = BOX.sets.map(fixSet);
+  if (!BOX.sets.length) BOX.sets.push(fixSet({ id: 'set1', name: 'Set 1' }));
+  var F = BOX.sets.filter(function (x) { return x.id === BOX.cur; })[0] || BOX.sets[0];
   var H = { root: null, target: null, files: new Map(), dirs: new Map() };     // handles of the last scan (this session only)
-  var sel = new Set(), CACHE = null, BUSY = false;
+  var sel = new Set(), CACHE = null, BUSY = false, PENDING = null;
   var canPick = typeof window.showDirectoryPicker === 'function';
 
-  function save() { A.writeJSON(KEY, F); CACHE = null; try { if (window.parent !== window && window.parent.__trackerEmbedSaved) window.parent.__trackerEmbedSaved('midp'); } catch (e) {} }
+  function save() { A.writeJSON(KEY, BOX); CACHE = null; try { if (window.parent !== window && window.parent.__trackerEmbedSaved) window.parent.__trackerEmbedSaved('midp'); } catch (e) {} }
   function U(s) { return String(s == null ? '' : s).toUpperCase().trim(); }
   function pid() { try { return window.parent.LTProjects.active().id; } catch (e) { return 'default'; } }
 
@@ -39,10 +55,11 @@ window.MIDP_FOLDER = function (A) {
       o.onerror = function () { rej(o.error); };
     });
   }
-  function keepHandle(h) { return idb('readwrite', function (s) { return s.put(h, 'midp:' + pid()); }).catch(function () {}); }
-  function loadHandle() { return idb('readonly', function (s) { return s.get('midp:' + pid()); }).catch(function () { return null; }); }
-  function keepTarget(h) { return idb('readwrite', function (s) { return h ? s.put(h, 'midp-target:' + pid()) : s.delete('midp-target:' + pid()); }).catch(function () {}); }
-  function loadTarget() { return H.target ? Promise.resolve(H.target) : idb('readonly', function (s) { return s.get('midp-target:' + pid()); }).then(function (h) { H.target = h || null; return H.target; }).catch(function () { return null; }); }
+  function hk() { return F.id === 'set1' ? '' : ':' + F.id; }
+  function keepHandle(h) { return idb('readwrite', function (s) { return s.put(h, 'midp:' + pid() + hk()); }).catch(function () {}); }
+  function loadHandle() { return idb('readonly', function (s) { return s.get('midp:' + pid() + hk()); }).catch(function () { return null; }); }
+  function keepTarget(h) { return idb('readwrite', function (s) { return h ? s.put(h, 'midp-target:' + pid() + hk()) : s.delete('midp-target:' + pid() + hk()); }).catch(function () {}); }
+  function loadTarget() { return H.target ? Promise.resolve(H.target) : idb('readonly', function (s) { return s.get('midp-target:' + pid() + hk()); }).then(function (h) { H.target = h || null; return H.target; }).catch(function () { return null; }); }
 
   /* ---------- reading the folder ---------- */
   function walk(dir, path, out) {
@@ -194,7 +211,7 @@ window.MIDP_FOLDER = function (A) {
       rows.push(g);
     });
     // against the submission list
-    var sb = F.ui.sub && A.subsByDate().filter(function (x) { return x.id === F.ui.sub; })[0], expected = new Map(), missing = [];
+    var sb = checklist(), expected = new Map(), missing = [];
     if (sb && sb._m) sb._m.forEach(function (m) {
       if (m.item) expected.set(U(m.item.base || m.item.num).replace(/-$/, ''), m.item);
       else if (m.num) expected.set(U(T.baseOf(m.num) || m.num), { num: m.num, title: m.title, nomidp: true });   // in the list, not in the MIDP
@@ -217,12 +234,30 @@ window.MIDP_FOLDER = function (A) {
       sb._m.forEach(function (m, i) {
         var b = m.item ? U(m.item.base || m.item.num).replace(/-$/, '') : (parseName(m.num + '.x').base || U(m.num));
         seen[b] = (seen[b] || 0) + 1;
-        list.push({ key: 'l:' + i, idx: i + 1, num: m.num, rev: m.rev, match: m.match, r: m.item, title: m.item ? m.item.title : m.title, base: b, g: byBase.get(b) || null });
+        list.push({ key: 'l:' + i, idx: i + 1, num: m.num, rev: m.rev, match: m.match, r: m.item, title: m.item ? m.item.title : m.title, base: b, g: byBase.get(b) || null, lists: m.lists || [], times: m.times || 1 });
       });
-      list.forEach(function (x) { x.listTwice = seen[x.base] > 1; });
+      list.forEach(function (x) { x.listTwice = seen[x.base] > 1 || x.times > 1; });
     }
     CACHE = { rows: rows, other: other, missing: missing, sb: sb, list: list };
     return CACHE;
+  }
+  function listEntries(l) {
+    if (l.sub) { var sb = A.subsByDate().filter(function (x) { return x.id === l.sub; })[0]; return sb ? sb.items || [] : []; }
+    return l.entries || [];
+  }
+  function checklist() {
+    if (!F.lists || !F.lists.length) return null;
+    var entries = [], idx = new Map();
+    F.lists.forEach(function (l) {
+      listEntries(l).forEach(function (e) {
+        var k = U(T.baseOf(e.num) || e.num), x = idx.get(k);
+        if (x) { if (x.lists.indexOf(l.name) < 0) x.lists.push(l.name); x.times++; }
+        else { x = { num: e.num, title: e.title, lists: [l.name], times: 1 }; idx.set(k, x); entries.push(x); }
+      });
+    });
+    var m = T.matchList(entries, A.itemsNow());
+    m.forEach(function (r, i) { r.lists = entries[i].lists; r.times = entries[i].times; });
+    return { _m: m, lists: F.lists, entries: entries };
   }
   function stateOf(g) {
     if (g.absent) return 'missing';
@@ -419,7 +454,8 @@ window.MIDP_FOLDER = function (A) {
     var MT = { exact: ['Match', 'c-ok'], rev: ['Match · other rev', 'c-ok'], title: ['Title only', 'c-warn'], none: ['Not in MIDP', 'c-bad'] };
     var cols = [
       { k: 'idx', label: '#', w: 46, cls: 'num', text: function (x) { return String(x.idx); }, sortKey: function (x) { return x.idx; } },
-      { k: 'num', label: 'Number (in the list)', w: 250, stick: true, cls: 'mono', text: function (x) { return x.num; }, html: function (x) { return (x.r ? A.numLink(x.num, x.r.key) : esc(x.num)) + (x.listTwice ? ' <span class="tag c-warn" title="This drawing is in the submission list more than once">twice in list</span>' : ''); } },
+      { k: 'num', label: 'Number (in the list)', w: 250, stick: true, cls: 'mono', text: function (x) { return x.num; }, html: function (x) { return (x.r ? A.numLink(x.num, x.r.key) : esc(x.num)) + (x.listTwice ? ' <span class="tag c-warn" title="This drawing is in more than one list of this set">' + ((x.lists || []).length > 1 ? 'in ' + x.lists.length + ' lists' : 'twice in list') + '</span>' : ''); } },
+      { k: 'list', label: 'List', w: 150, text: function (x) { return (x.lists || []).join(', '); } },
       { k: 'midp', label: 'MIDP', w: 130, text: function (x) { return (MT[x.match] || MT.none)[0]; }, html: function (x) { var m = MT[x.match] || MT.none; return A.tag(m[0], m[1], false, x.r ? x.r.num : ''); } },
       { k: 'title', label: 'Title', w: 300, text: function (x) { return x.title || ''; } },
       { k: 'in', label: 'In folder', w: 110, text: function (x) { return { in: 'Yes', part: 'File missing', missing: 'No' }[st(x)]; }, html: function (x) { var s2 = st(x); return A.tag({ in: '✓ Yes', part: 'File missing', missing: '✗ No' }[s2], { in: 'c-ok', part: 'c-warn', missing: 'c-bad' }[s2]); } }
@@ -507,9 +543,66 @@ window.MIDP_FOLDER = function (A) {
       '<button class="btn" type="button" data-act="fdundo" title="Puts everything back the way it was">⬇ Undo file (.bat)</button></div></div>';
     return h;
   }
+  /* ---------- 📦 the sets ---------- */
+  function setInfo(x) {                                  // quick count for a set (also the ones not open)
+    var bases = {}, total = 0, ready = 0, req = x.ui.req;
+    x.files.forEach(function (f) { var p = parseName(f[1]); if (!p.num) return; (bases[p.base] = bases[p.base] || {})[p.ext] = 1; });
+    var seen = {};
+    (x.lists || []).forEach(function (l) {
+      var es = l.sub ? ((A.subsByDate().filter(function (y) { return y.id === l.sub; })[0] || {}).items || []) : l.entries || [];
+      es.forEach(function (e) { var b = U(T.baseOf(e.num) || e.num); if (seen[b]) return; seen[b] = 1; total++; if (bases[b] && req.every(function (t) { return bases[b][t]; })) ready++; });
+    });
+    return { id: x.id, name: x.name, total: total, ready: ready, sent: !!x.submitted };
+  }
+  window.MIDP_SETS_INFO = function () { return BOX.sets.map(setInfo).filter(function (x) { return x.total; }); };
+  function setBar() {
+    var h = '<div class="fd-sets"><div class="chips">' + BOX.sets.map(function (x) {
+      var i = setInfo(x);
+      return '<button class="chip" type="button" data-act="fdset" data-v="' + esc(x.id) + '" aria-pressed="' + (x.id === F.id) + '" title="' + esc(x.name) + '">📦 ' + esc(x.name) +
+        (i.total ? '<span class="c">' + i.ready + '/' + i.total + '</span>' : '') + (x.submitted ? ' ✓' : '') + '</button>';
+    }).join('') + '<button class="chip" type="button" data-act="fdsetnew" title="A new set with its own folder and lists">＋ New set</button></div></div>';
+    var sentNote = F.submitted ? '<span class="tag c-ok">✓ Marked as submitted ' + esc(A.fmtDay(F.submitted.date, true)) + '</span>' : '';
+    h += '<div class="box fd-sethead"><div class="toolbar" style="margin:0"><b class="fd-setname">📦 ' + esc(F.name) + '</b>' +
+      '<label class="hint">Date <input type="date" data-fd="setdate" value="' + esc(F.date || '') + '"></label>' + sentNote +
+      '<span class="grow"></span><button class="btn small" type="button" data-act="fdsetren">Rename</button>' +
+      (BOX.sets.length > 1 ? '<button class="btn small" type="button" data-act="fdsetdel">Delete set</button>' : '') + '</div>' +
+      '<div class="toolbar fd-lists" style="margin:8px 0 0"><span class="hint">Lists in this set <b>(a checklist only — nothing counts as sent)</b>:</span>' +
+      (F.lists.length ? F.lists.map(function (l) {
+        return '<span class="tag c-info fd-l">' + (l.sub ? '📅 ' : '📄 ') + esc(l.name) + ' · ' + listEntries(l).length + ' <button type="button" class="fd-lx" data-act="fdlistdel" data-v="' + esc(l.id) + '" title="Remove this list from the set">✕</button></span>';
+      }).join('') : '<span class="hint">none yet</span>') +
+      '<label class="btn small">＋ Excel list<input type="file" id="fdListFile" accept=".xlsx,.xlsm,.xls,.csv" multiple hidden></label>' +
+      '<button class="btn small" type="button" data-act="fdlistpaste">📋 Paste list</button>' +
+      (A.subsByDate().length ? '<select data-fd="addsub" class="fd-sel"><option value="">＋ A recorded submission…</option>' + A.subsByDate().map(function (x) { return '<option value="' + esc(x.id) + '">' + esc(A.subHead(x)) + ' (' + (x.items || []).length + ')</option>'; }).join('') + '</select>' : '') +
+      (F.lists.some(function (l) { return !l.sub; }) ? '<span class="grow"></span><button class="btn small primary" type="button" data-act="fdsubmit" title="Record this set in Submissions (sent dates, due status)">✓ Mark as submitted</button>' : '') +
+      '</div></div>';
+    return h;
+  }
+  function switchSet(id) {
+    var x = BOX.sets.filter(function (y) { return y.id === id; })[0]; if (!x) return;
+    F = x; BOX.cur = id; H = { root: null, target: null, files: new Map(), dirs: new Map() }; sel.clear(); save(); A.render();
+  }
+  function addList(name, entries) {
+    if (!entries.length) { A.toast('No drawing numbers found in ' + name); return; }
+    F.lists.push({ id: 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: name, entries: entries, at: Date.now() });
+    save(); A.render(); A.toast('📄 ' + name + ': ' + A.plural(entries.length, 'drawing') + ' added to the set');
+  }
+  function listFiles(files) {
+    Array.prototype.forEach.call(files, function (f) {
+      var fr = new FileReader();
+      fr.onload = function () {
+        try {
+          var sheets = A.readListFile(new Uint8Array(fr.result), f.name), seen = {}, out = [];
+          sheets.forEach(function (sh) { sh.entries.forEach(function (e) { var k = U(e.num); if (!seen[k]) { seen[k] = 1; out.push({ num: e.num, title: e.title }); } }); });
+          addList(f.name.replace(/\.[^.]+$/, ''), out);
+        } catch (e) { A.toast('⚠ ' + e.message); }
+      };
+      fr.readAsArrayBuffer(f);
+    });
+  }
+
   A.VIEWS.folder = function () {
     var u = F.ui, B = F.files.length ? build() : null;
-    var h = '<div class="fd-top box"><div class="toolbar" style="margin:0">' +
+    var h = setBar() + '<div class="fd-top box"><div class="toolbar" style="margin:0">' +
       '<button class="btn primary" type="button" data-act="fdconnect">📁 ' + (F.root ? 'Change folder' : 'Connect the export folder') + '</button>' +
       (F.root ? '<button class="btn" type="button" data-act="fdrescan"' + (BUSY ? ' disabled' : '') + '>↻ Rescan</button><span class="hint"><b>' + esc(F.root) + '</b> · ' + F.files.length + ' files · read ' + esc(new Date(F.at).toLocaleString()) +
         (F.newN ? ' · <b style="color:var(--ok)">' + F.newN + ' new</b>' : '') + (F.goneN ? ' · ' + F.goneN + ' gone' : '') + '</span>' : '<span class="hint">Only the file names are read — nothing is opened or uploaded.' + (canPick ? ' Edge remembers the folder: next time just ↻ Rescan.' : '') + '</span>') +
@@ -517,7 +610,7 @@ window.MIDP_FOLDER = function (A) {
       '<input type="file" id="fdPick" webkitdirectory multiple hidden></div>';
     if (BUSY) h += '<div class="hint" style="margin-top:6px">Reading…</div>';
     h += '</div>';
-    if (!B) return h + '<div class="box empty"><b>No folder read yet</b>Connect the folder where the drawings are exported (e.g. C:\\BIM works\\EXPORTS\\IFC Prints). Load the submission list first in Files, to check what is ready, missing or extra.</div>';
+    if (!B) return h + '<div class="box empty"><b>No folder read yet</b>Connect the folder where the drawings are exported (e.g. C:\\BIM works\\EXPORTS\\IFC Prints). Add the lists of this set above (Excel, paste or a recorded submission) to see what is ready, missing or extra.</div>';
 
     var all = B.rows, exts = {};
     F.files.forEach(function (f) { var e = parseName(f[1]).ext; if (e) exts[e] = (exts[e] || 0) + 1; });
@@ -526,8 +619,7 @@ window.MIDP_FOLDER = function (A) {
     // required file types + submission list
     h += '<div class="toolbar"><span class="hint">Each drawing needs:</span>' + Object.keys(exts).sort().map(function (e) {
       return '<label class="chip" style="cursor:pointer"><input type="checkbox" data-fdreq="' + esc(e) + '"' + (u.req.indexOf(e) >= 0 ? ' checked' : '') + ' style="margin-right:4px">.' + esc(e) + '<span class="c">' + exts[e] + '</span></label>';
-    }).join('') + '<span class="grow"></span><label class="hint">Check against <select data-fd="sub"><option value="">— no submission list —</option>' +
-      A.subsByDate().map(function (x) { return '<option value="' + esc(x.id) + '"' + (x.id === u.sub ? ' selected' : '') + '>' + esc(A.subHead(x)) + ' (' + (x.items || []).length + ')</option>'; }).join('') + '</select></label></div>';
+    }).join('') + '</div>';
     if (B.sb) {
       var t = { Ready: 0, Part: 0, Extra: 0 }; all.forEach(function (g) { if (g.target) t[g.target]++; });
       h += '<div class="kpis fd-k"><button class="kpi" type="button" data-act="fdf" data-v="t:Ready"><span class="v" style="color:var(--ok)">' + t.Ready + '</span><span class="l">Ready</span></button>' +
@@ -614,6 +706,51 @@ window.MIDP_FOLDER = function (A) {
       save(); A.render();
     },
     fdsort: sortNow,
+    fdset: function (el) { switchSet(el.getAttribute('data-v')); },
+    fdsetnew: function () {
+      var n = prompt('Name of the new set (e.g. IFC Set 2 – Tower 1)', ''); if (!n || !n.trim()) return;
+      var x = fixSet({ id: 's' + Date.now().toString(36), name: n.trim(), date: T.todayIso() });
+      x.ui.req = F.ui.req.slice(); x.ui.group = F.ui.group.slice();          // same habits as the set you were in
+      BOX.sets.push(x); switchSet(x.id); A.toast('📦 ' + x.name + ' — connect its folder and add its lists');
+    },
+    fdsetren: function () { var n = prompt('Rename the set', F.name); if (n && n.trim()) { F.name = n.trim(); save(); A.render(); } },
+    fdsetdel: function () {
+      if (!confirm('Delete the set “' + F.name + '”? Its lists and results are removed from here. Your files and the MIDP are not touched.')) return;
+      BOX.sets = BOX.sets.filter(function (x) { return x !== F; }); switchSet(BOX.sets[0].id);
+    },
+    fdlistdel: function (el) { var id = el.getAttribute('data-v'); F.lists = F.lists.filter(function (l) { return l.id !== id; }); save(); A.render(); },
+    fdlistpaste: function () {
+      A.openDialog('<h2 id="dlgH">📋 Paste a list</h2><p class="hint" style="margin-top:0">Copy the rows from Excel (or an email) and paste them here — drawing numbers are found by themselves, titles too when there is a title column.</p>' +
+        '<div class="row"><label class="field" style="flex:1"><span>List name</span><input type="text" id="fdPName" value="List ' + (F.lists.length + 1) + '"></label></div>' +
+        '<textarea id="fdPText" rows="10" style="width:100%" placeholder="Paste here"></textarea>' +
+        '<div class="acts"><button class="btn" type="button" data-act="dlgclose">Cancel</button><button class="btn primary" type="button" data-act="fdlistpasteok">Add to the set</button></div>');
+    },
+    fdlistpasteok: function () {
+      var t = document.getElementById('fdPText').value, name = T.txt(document.getElementById('fdPName').value) || 'Pasted list';
+      var rows = t.split(/\r?\n/).map(function (l) { return l.split('\t'); });
+      var out = T.parseList(rows);
+      if (!out.length) out = (t.match(/[A-Z0-9]+(?:-[A-Z0-9]+){4,}/gi) || []).filter(function (x, i, a) { return a.indexOf(x) === i; }).map(function (n) { return { num: n, title: '' }; });
+      A.closeDialog(); addList(name, out);
+    },
+    fdsubmit: function () {
+      var B = build(), own = [];
+      F.lists.forEach(function (l) { if (!l.sub) own = own.concat(l.entries || []); });
+      var seen = {}, items = own.filter(function (e) { var k = U(T.baseOf(e.num) || e.num); if (seen[k]) return false; seen[k] = 1; return true; });
+      var notIn = B.list.filter(function (x) { return !x.g; }).length;
+      A.openDialog('<h2 id="dlgH">✓ Mark “' + esc(F.name) + '” as submitted</h2><p class="hint" style="margin-top:0">' + A.plural(items.length, 'drawing') + ' from the lists of this set are recorded in Submissions — sent dates and due status update everywhere.' +
+        (notIn ? '<br><b style="color:var(--bad)">' + A.plural(notIn, 'drawing') + ' of the lists are not in the folder yet.</b>' : '') + '</p>' +
+        '<div class="row"><label class="field"><span>Date sent</span><input type="date" id="fdSubDate" value="' + esc(F.date || T.todayIso()) + '"></label>' +
+        '<label class="field" style="flex:1"><span>Name</span><input type="text" id="fdSubName" value="' + esc(F.name) + '"></label></div>' +
+        '<div class="acts"><button class="btn" type="button" data-act="dlgclose">Cancel</button><button class="btn primary" type="button" data-act="fdsubmitok">Record it</button></div>');
+      PENDING = items;
+    },
+    fdsubmitok: function () {
+      var date = document.getElementById('fdSubDate').value || T.todayIso(), name = T.txt(document.getElementById('fdSubName').value) || F.name;
+      var sb = { id: 'S' + Date.now().toString(36), date: date, type: name, ref: name, note: 'From drawing set ' + F.name, file: F.lists.map(function (l) { return l.name; }).join(', '), added: Date.now(), items: PENDING || [] };
+      S.store.subs.push(sb); A.saveStore(); A.compute();
+      F.submitted = { at: Date.now(), date: date, subId: sb.id }; save(); A.closeDialog(); A.render();
+      A.toast('✓ Recorded in Submissions: ' + name + ' · ' + A.plural(sb.items.length, 'drawing'));
+    },
     fdtf: function (el) { F.ui.tf = el.getAttribute('data-v'); save(); A.render(); },
     fdview: function (el) { F.ui.view = el.getAttribute('data-v'); save(); A.render(); },
     fdlf: function (el) { var v = el.getAttribute('data-v'); F.ui.lf = F.ui.lf === v && v ? '' : v; save(); A.render(); },
@@ -637,6 +774,13 @@ window.MIDP_FOLDER = function (A) {
   document.addEventListener('change', function (e) {
     var el = e.target;
     if (el.id === 'fdPick') { if (el.files && el.files.length) fromInput(el.files); el.value = ''; return; }
+    if (el.id === 'fdListFile') { if (el.files && el.files.length) listFiles(el.files); el.value = ''; return; }
+    if (el.matches && el.matches('[data-fd="setdate"]')) { F.date = el.value; save(); return; }
+    if (el.matches && el.matches('[data-fd="addsub"]')) {
+      var sb = A.subsByDate().filter(function (x) { return x.id === el.value; })[0];
+      if (sb && !F.lists.some(function (l) { return l.sub === sb.id; })) { F.lists.push({ id: 'l' + Date.now().toString(36), name: A.subHead(sb), sub: sb.id }); save(); }
+      A.render(); return;
+    }
     if (el.matches && el.matches('[data-fdsel]')) { var k = el.getAttribute('data-fdsel'); if (el.checked) sel.add(k); else sel.delete(k); A.render(); return; }
     if (el.matches && el.matches('[data-fdreq]')) {
       var x = el.getAttribute('data-fdreq'), r = F.ui.req.filter(function (y) { return y !== x; }); if (el.checked) r.push(x); F.ui.req = r; save(); A.render(); return;
@@ -660,6 +804,7 @@ window.MIDP_FOLDER = function (A) {
     '.fd-sort{margin-top:14px;padding:12px}.fd-tree{display:flex;flex-wrap:wrap;gap:6px;max-height:220px;overflow:auto}' +
     '.fd-node{font-size:12px;border:1px solid var(--edge);padding:3px 8px;background:var(--panel)}.fd-node b{color:var(--accent);margin-left:4px}.fd-node.warn{border-style:dashed}' +
     '.fd-tgt{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:6px 0;padding:8px;border:1px dashed var(--edge)}.fd-tg{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}.fd-tg input{min-width:260px;max-width:100%}' +
+    '.fd-sets{margin-bottom:8px}.fd-sethead{padding:10px 12px;margin-bottom:10px}.fd-setname{font-size:15px}.fd-l{display:inline-flex;align-items:center;gap:4px}.fd-lx{border:0;background:none;color:inherit;cursor:pointer;padding:0 2px}.fd-sel{max-width:230px}' +
     '.fd-tree2{display:grid;grid-template-columns:minmax(200px,280px) 1fr;gap:12px;align-items:start}.fd-tl{border:1px solid var(--edge);background:var(--panel);max-height:70vh;overflow:auto;padding:4px 0}' +
     '.fd-ti{display:flex;align-items:center;gap:4px;width:100%;text-align:left;border:0;background:none;color:var(--ink);font:inherit;font-size:13px;padding:5px 8px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
     '.fd-ti:hover{background:var(--raise)}.fd-ti.on{background:var(--raise);font-weight:700;box-shadow:inset 3px 0 0 var(--accent)}.fd-ti.srt{color:var(--info)}.fd-ti .c{margin-left:auto;color:var(--muted);font-size:11px}' +

@@ -28,6 +28,7 @@ swaps = {
     '<script src="midp-home.js"></script>': js(MIDP / 'midp-home.js'),
     '<script src="midp-arr.js"></script>': js(MIDP / 'midp-arr.js'),
     '<script src="midp-stack.js"></script>': js(MIDP / 'midp-stack.js'),
+    '<script src="midp-cover.js"></script>': js(MIDP / 'midp-cover.js'),
 }
 for old, new in swaps.items():
     if old not in html:

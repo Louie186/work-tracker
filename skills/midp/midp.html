@@ -534,6 +534,7 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
     <button class="tab" role="tab" type="button" data-go="models" data-grp="lookup">Model assignment<span class="n" data-count="models">0%</span></button>
     <button class="tab" role="tab" type="button" data-go="lists" data-grp="lookup">Lists<span class="n" data-count="lists">0</span></button>
     <button class="tab" role="tab" type="button" data-go="overview" data-grp="overview">Overview</button>
+    <button class="tab" role="tab" type="button" data-go="cover" data-grp="overview">🗺 Coverage map</button>
     <button class="tab" role="tab" type="button" data-go="changes" data-grp="changes">Changes<span class="n" data-count="changes">0</span></button>
     <button class="tab" role="tab" type="button" data-go="subs" data-grp="subs">Submissions<span class="n" data-count="subs">0</span></button>
     <button class="tab" role="tab" type="button" data-go="chase" data-grp="subs">Due &amp; late<span class="n" data-count="chase">0</span></button>
@@ -574,6 +575,7 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
 <script src="midp-home.js"></script>
 <script src="midp-arr.js"></script>
 <script src="midp-stack.js"></script>
+<script src="midp-cover.js"></script>
 <script>
 /* =====================================================================
    TIDP CORE
@@ -4070,6 +4072,7 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
   if (typeof window.MIDP_HOME === 'function') window.MIDP_HOME(window.MIDP);
   if (typeof window.MIDP_ARR === 'function') window.MIDP_ARR(window.MIDP);
   if (typeof window.MIDP_STACK === 'function') window.MIDP_STACK(window.MIDP);
+  if (typeof window.MIDP_COVER === 'function') window.MIDP_COVER(window.MIDP);
 
   // inside Lew's Tracker the look is set in Settings only
   try { if (window.parent !== window) $$('.theme-seg').forEach(function (el) { el.style.display = 'none'; }); } catch (e) {}

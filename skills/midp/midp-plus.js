@@ -211,15 +211,31 @@ window.MIDP_PLUS = function (A) {
     if (p.length > 5 && (/^([A-Z]\d{1,3}|P\d{2})$/.test(last) || (/^\d{2,3}$/.test(last) && /^\d{3,}$/.test(p[p.length - 2])))) p.pop();
     return p.join('');
   }
+  /* the Model arrangement (Files › 🏢 Arrangement): which levels each unit type is on */
+  function AR() { try { return window.MIDP_EXT && MIDP_EXT.arrUnits ? MIDP_EXT.arrUnits() : null; } catch (e) { console.error(e); return null; } }
+  function arrOf(d) { var a = AR(); var u = a && d.typ ? a.byTypo[d.typ.name] : null; return u && (!d.bld || d.bld === 'ZZ' || d.bld === 'XX' || U(d.bld) === u.b) ? u : (u && !a.units.some(function (x) { return x.b === U(d.bld); }) ? u : null); }
+  function arrOn(u, n) { return !!u && u.levels.some(function (c) { return /^\d+$/.test(c) && +c === n; }); }
+  function arrIn(u, a, b) { return !!u && u.levels.some(function (c) { return /^\d+$/.test(c) && +c >= a && +c <= b; }); }
   function levelHit(d, n) {
+    if (arrOn(arrOf(d), n)) return true;
     if (/^\d+$/.test(d.lvl) && +d.lvl === n) return true;
     return new RegExp('\\b(LEVEL|LVL|L)\\s*0*' + n + '\\b').test(U(d.title));
   }
   /* the search language — every kind of word it understands (shown in 🧩 Search logic) */
   var WORDS = {
+    lvlr: function (d, t) {
+      if (arrIn(arrOf(d), t.a, t.b)) return true;
+      if (/^\d+$/.test(d.lvl) && +d.lvl >= t.a && +d.lvl <= t.b) return true;
+      var m = /\b(?:LEVEL|LVL|L)\s*0*(\d{1,3})\b/.exec(U(d.title)); return !!m && +m[1] >= t.a && +m[1] <= t.b;
+    },
+    tier: function (d, t) { var u = arrOf(d); return (!!u && u.tiers.indexOf('Tier ' + t.n) > -1) || new RegExp('\\bTIER\\s*' + t.n + '\\b').test(U(d.title)); },
+    tl: function (d, t) { return !!d.typ && t.re.test(U(d.typ.name)); },
     bed: function (d, t) { var s = U((d.typ ? d.typ.name : '') + ' ' + d.title); return t.n === 0 ? /\bSTUDIO\b/.test(s) : new RegExp('\\b' + t.n + '\\s*-?\\s*(BR|BED|BEDROOM)S?\\b').test(s); },
     cls: function (d, t) {
-      var s = U((d.typ ? d.typ.name : '') + ' ' + d.title);
+      var s = U((d.typ ? d.typ.name : '') + ' ' + d.title), u = arrOf(d), c = u ? u.cls.join(' ') : '';
+      if (u && t.v === 'SV' && /SERVIC/i.test(c)) return true;
+      if (u && t.v === 'HT' && /HOTEL/i.test(c)) return true;
+      if (u && t.v === 'RES' && /SERVIC|HOTEL/i.test(c)) return false;
       if (t.v === 'SV') return /^SV\b|\bSERVICED\b|\bSV UNIT\b/.test(s);
       if (t.v === 'HT') return /^HT\b|\bHT[- ]|\bHOTEL\b|\bSUITE\b|\bKING\b|\bTWIN\b|\bGUEST ?ROOM\b/.test(s);
       if (t.v === 'RES') return !!d.typ && /UNIT TYPE/.test(s) && !/^SV\b|\bSV UNIT\b/.test(s);
@@ -230,7 +246,8 @@ window.MIDP_PLUS = function (A) {
         t.v === 'nomodel' ? !d.model : t.v === 'notypo' ? !d.typ : t.v === 'guess' ? !!(d.model && !d.model.sure) : true;
     }
   };
-  var STATUS = { LATE: 'late', OVERDUE: 'late', SOON: 'soon', DUE: 'soon', SENT: 'sent', SUBMITTED: 'sent', UNSENT: 'unsent', NOTSENT: 'unsent', NOMODEL: 'nomodel', NOTYPOLOGY: 'notypo', SUGGESTED: 'guess' };
+  var STOP = { YET: 1, ON: 1, IN: 1, OF: 1, THE: 1, AND: 1, WITH: 1, FOR: 1, AT: 1, ALL: 1, LIST: 1, SHOW: 1, ME: 1, WHICH: 1, WHAT: 1, ARE: 1 };
+  var STATUS = { UNMODELLED: 'nomodel', UNMODELED: 'nomodel', LATE: 'late', OVERDUE: 'late', SOON: 'soon', DUE: 'soon', SENT: 'sent', SUBMITTED: 'sent', UNSENT: 'unsent', NOTSENT: 'unsent', NOMODEL: 'nomodel', NOTYPOLOGY: 'notypo', SUGGESTED: 'guess' };
   var STATUS_LABEL = { late: 'Late', soon: 'Due soon', sent: 'Sent', unsent: 'Not sent', nomodel: 'No model', notypo: 'No typology', guess: 'Suggested model' };
   var SHOW = { MODELS: 'models', MODEL: 'models', TYPOLOGIES: 'typos', TYPOLOGY: 'typos', UNITS: 'typos', DRAWINGS: 'drawings' };
   // spelling slips and short forms
@@ -247,6 +264,14 @@ window.MIDP_PLUS = function (A) {
     while (i < parts.length) {
       var w = U(parts[i]), nx = U(parts[i + 1] || ''), two = parts[i] + ' ' + (parts[i + 1] || ''), m;
       if (/^(TOWER|BLDG|BUILDING)$/.test(w) && /^\d+$/.test(nx)) { toks.push({ k: 'bld', v: 'T' + (+nx), label: 'Tower ' + (+nx), src: two }); i += 2; continue; }
+      var rg = /^(?:L(?:EVEL)?S?)?0*(\d{1,3})(?:-|–|—|TO)L?0*(\d{1,3})$/.exec(w) || (/^(LEVELS?|LVL|L)$/.test(w) && /^0*\d{1,3}(-|–|—)L?0*\d{1,3}$/.test(nx) ? /^0*(\d{1,3})(?:-|–|—)L?0*(\d{1,3})$/.exec(nx) : null);
+      if (rg && (/^L/.test(w) || /^(LEVELS?|LVL|L)$/.test(w))) { var ra = Math.min(+rg[1], +rg[2]), rb = Math.max(+rg[1], +rg[2]); toks.push({ k: 'lvlr', a: ra, b: rb, label: 'Levels ' + ra + '–' + rb, src: /^(LEVELS?|LVL|L)$/.test(w) ? two : parts[i] }); i += /^(LEVELS?|LVL|L)$/.test(w) ? 2 : 1; continue; }
+      if ((m = /^L0*(\d{1,3})$/.exec(w)) && /^(-|–|TO)$/.test(nx) && /^L?0*\d{1,3}$/.test(U(parts[i + 2] || ''))) { var rc = +U(parts[i + 2]).replace(/^L0*/, ''), r1 = Math.min(+m[1], rc), r2 = Math.max(+m[1], rc); toks.push({ k: 'lvlr', a: r1, b: r2, label: 'Levels ' + r1 + '–' + r2, src: parts.slice(i, i + 3).join(' ') }); i += 3; continue; }
+      if (w === 'TIER' && /^\d$/.test(nx)) { toks.push({ k: 'tier', n: +nx, label: 'Tier ' + nx, src: two }); i += 2; continue; }
+      if ((m = /^TIER(\d)$/.exec(w))) { toks.push({ k: 'tier', n: +m[1], label: 'Tier ' + m[1], src: parts[i] }); i++; continue; }
+      if (w === 'TYPE' && /^[A-Z]\d?$/.test(nx)) { toks.push({ k: 'tl', v: nx, re: new RegExp('\\bTYPE\\s*' + nx[0] + (nx[1] ? '\\s*' + nx[1] : '') + '\\s*(\\(|$)'), label: 'Type ' + nx, src: two }); i += 2; continue; }
+      if (STOP[w]) { i++; continue; }
+      if ((w === 'NOT' || w === 'UN') && /^MODEL(L)?ED$/.test(nx)) { toks.push({ k: 'st', v: 'nomodel', label: STATUS_LABEL.nomodel, src: two }); i += 2; continue; }
       if (/^(LEVEL|LVL)$/.test(w) && /^\d+$/.test(nx)) { toks.push({ k: 'lvl', n: +nx, label: 'Level ' + (+nx), src: two }); i += 2; continue; }
       if ((m = /^L(?:EVEL)?0*(\d+)$/.exec(w))) { toks.push({ k: 'lvl', n: +m[1], label: 'Level ' + (+m[1]), src: parts[i] }); i++; continue; }
       if (/^(GF|GR|GROUND)$/.test(w)) { toks.push({ k: 'lvlc', v: ['GF', 'GR', '00'], word: 'GROUND', label: 'Ground', src: parts[i] }); i++; continue; }
@@ -366,8 +391,39 @@ window.MIDP_PLUS = function (A) {
   function tRow(t) {
     var ref = 'ty:' + t.name, on = P.sel.has(ref);
     return '<div class="lrow' + (on ? ' on' : '') + '" draggable="true" data-drag="' + esc(ref) + '" data-act="lkopen" data-ref="' + esc(ref) + '"><input type="checkbox" data-lpick="' + esc(ref) + '"' + (on ? ' checked' : '') + '>' +
-      '<span class="lid">▦ Typology</span><span class="ltt">' + esc(t.name) + '<small>' + esc(Object.keys(t.blds).join(', ')) + '</small></span><span class="ltags"><span class="lt">' + t.drawings.length + ' drawings</span>' +
+      '<span class="lid">▦ Typology</span><span class="ltt">' + esc(t.name) + '<small>' + esc(Object.keys(t.blds).join(', ')) + arrLine(t.name) + '</small></span><span class="ltags"><span class="lt">' + t.drawings.length + ' drawings</span>' +
       (Object.keys(t.models).length ? '<span class="lt">' + esc(Object.keys(t.models).slice(0, 2).join(', ')) + '</span>' : '') + '</span></div>';
+  }
+  function arrLine(name) {
+    var a = AR(), u = a && a.byTypo[name]; if (!u) return '';
+    return esc(' · ' + (u.levelsText ? 'L' + u.levelsText.replace(/, /g, ', L') : 'not placed') + ' · ' + u.units + ' units' + (u.tiers.length ? ' · ' + u.tiers.join(', ') : '') + (/SERVIC/i.test(u.cls.join()) ? ' · serviced' : ''));
+  }
+  /* the level box: "L5" / "L10-L20" / "tier 2" → the floors, their floor models and the units on them (from the arrangement) */
+  function levelBox(r) {
+    var a = AR(); if (!a || r.pq.mode !== 'words') return '';
+    var toks = r.pq.toks, lt = toks.filter(function (t) { return t.k === 'lvl' || t.k === 'lvlr'; })[0], tt = toks.filter(function (t) { return t.k === 'tier'; })[0];
+    if (!lt && !tt) return '';
+    var bt = toks.filter(function (t) { return t.k === 'bld'; }).map(function (t) { return t.v; });
+    var only = toks.every(function (t) { return t.k === 'lvl' || t.k === 'lvlr' || t.k === 'tier' || t.k === 'bld' || t.k === 'show'; });
+    var okTypo = {}; r.typos.forEach(function (t) { okTypo[t.name] = 1; }); r.drawings.forEach(function (d) { if (d.typ) okTypo[d.typ.name] = 1; });
+    var inLv = function (c) { if (!/^\d+$/.test(c)) return false; var n = +c; return !lt || (lt.k === 'lvl' ? n === lt.n : n >= lt.a && n <= lt.b); };
+    var blds = {}; a.levels.forEach(function (l) { if ((!bt.length || bt.indexOf(l.b) > -1) && inLv(l.code) && (!tt || l.tier === 'Tier ' + tt.n)) (blds[l.b] = blds[l.b] || []).push(l); });
+    var bs = Object.keys(blds).sort(); if (!bs.length) return '<div class="lvbox box"><b>🏢 ' + esc(lt ? lt.label : tt.label) + '</b> <span class="hint">— not in the arrangement' + (bt.length ? ' for ' + esc(bt.join(', ')) : '') + '</span></div>';
+    var body = bs.map(function (b) {
+      var lv = blds[b], codes = lv.map(function (l) { return l.code; }), fm = {};
+      lv.forEach(function (l) { var k = l.fmName || l.fm || l.type; (fm[k] = fm[k] || { l: l, c: [] }).c.push(l.code); });
+      var us = a.units.filter(function (u) { return u.b === b && (only || (u.typ && okTypo[u.typ])) && codes.some(function (c) { return u.lv[c]; }); }).map(function (u) {
+        var n = 0, f = 0; codes.forEach(function (c) { if (u.lv[c]) { n += u.lv[c]; f++; } }); return { u: u, n: n, f: f };
+      }).sort(function (x, y) { return x.u.name.localeCompare(y.u.name, undefined, { numeric: true }); });
+      var total = us.reduce(function (s, x) { return s + x.n; }, 0);
+      return '<div class="lvb"><div class="lvh"><b>' + esc(bldName(b)) + '</b><span class="hint">' + (codes.length === 1 ? 'L' + esc(codes[0]) : A.plural(codes.length, 'level') + ' (' + esc(a.compress(codes)) + ')') + ' · ' + A.plural(us.length, 'unit type') + ' · ' + A.plural(total, 'unit') + '</span></div>' +
+        '<div class="lvfm">' + Object.keys(fm).map(function (k) { var x = fm[k]; return '<span class="lt" title="' + esc(x.l.fm || '') + '">' + esc((x.l.fmName || x.l.fm || x.l.type || '—') + (x.l.tier ? ' · ' + x.l.tier : '')) + (codes.length > 1 ? ' · ' + esc(a.compress(x.c)) : '') + '</span>'; }).join('') + '</div>' +
+        '<div class="lvu">' + (us.map(function (x) {
+          var sv = /SERVIC/i.test(x.u.cls.join()), ht = /HOTEL/i.test(x.u.cls.join());
+          return '<button type="button" class="lvc' + (sv ? ' sv' : ht ? ' ht' : '') + '"' + (x.u.typ ? ' data-act="lkopen" data-ref="' + esc('ty:' + x.u.typ) + '" title="' + esc(x.u.typ) + '"' : ' title="Not in the MIDP"') + '><b>' + esc(x.u.name) + '</b> ×' + x.n + (codes.length > 1 ? ' <i>' + x.f + ' fl</i>' : '') + (x.u.typ ? '' : ' <i class="bad">no MIDP</i>') + '</button>';
+        }).join('') || '<span class="hint">No units on these floors</span>') + '</div></div>';
+    }).join('');
+    return '<div class="lvbox box"><div class="lvh"><b>🏢 ' + esc([lt && lt.label, tt && tt.label].filter(Boolean).join(' · ')) + '</b><span class="hint">from the Model arrangement' + (only ? '' : ' · only units matching your other words') + ' · click a unit for its drawings</span></div>' + body + '</div>';
   }
   function mRow(m) {
     var ref = 'm:' + m.num, on = P.sel.has(ref);
@@ -385,17 +441,20 @@ window.MIDP_PLUS = function (A) {
       man.map(function (l) { return '<button class="lchip" type="button" data-ldrop="' + l.id + '" data-act="lsopen" data-v="' + l.id + '"><span>📌 ' + esc(l.name) + '</span><b>' + members(l).length + '</b></button>'; }).join('') +
       '<button class="lbtn" type="button" data-act="lsnew">+ New list</button></div>';
   }
+  function cmpKeys() { var a = AR(); if (!a) return []; var out = []; P.sel.forEach(function (ref) { if (ref.indexOf('ty:') === 0 && a.byTypo[ref.slice(3)]) out.push(a.byTypo[ref.slice(3)].key); }); return out.slice(0, 4); }
   function selBar() {
     if (!P.sel.size) return '';
     var man = L.lists.filter(function (l) { return l.kind !== 'search'; });
     return '<div class="lsel"><b>' + P.sel.size + '</b> picked <select id="lkTo"><option value="">Add to list…</option>' + man.map(function (l) { return '<option value="' + l.id + '">' + esc(l.name) + '</option>'; }).join('') + '<option value="_new">+ New list…</option></select>' +
+      (cmpKeys().length >= 2 ? '<button class="lbtn" type="button" data-act="lkcmp" title="Side by side: levels, tier, floor models, drawings">⚖ Compare ' + cmpKeys().length + '</button>' : '') +
       '<button class="lbtn" type="button" data-act="lkclear">Clear</button></div>';
   }
 
   /* ---------- 🧩 Search logic: ready-made searches ("recipes") — written in the same words you type ----------
      A new idea = one more line here (and a note in UPDATES). Nothing else changes. */
-  var PACK = '1.0';
+  var PACK = '1.1';
   var UPDATES = [
+    { v: '1.1', d: '2026-11-04', t: 'Uses the Model arrangement (Files › 🏢 Arrangement): levels now find unit drawings too (L5 = every unit on Level 5), level ranges (L10-L20, levels 10-20, L10 to L20), tier 2, “Type A”, serviced / hotel from the stacking, “not modelled”. A level box shows the floors, floor models and units. Unit cards show levels, tier and floor models. Tick 2–4 typologies → ⚖ Compare.' },
     { v: '1.0', d: '2026-11-03', t: 'First search pack: towers, levels, types, typologies, bedrooms (1BR, studio), serviced / hotel / residential, status (late, due, sent, not sent, no model, suggested), show models / typologies / drawings, “Res 2” and spelling slips like “servced”.' }
   ];
   var RECIPES = [
@@ -411,6 +470,12 @@ window.MIDP_PLUS = function (A) {
     { id: 'svdr', name: 'Serviced apartment drawings', q: 'serviced', d: 'Every drawing of a serviced unit' },
     { id: 'hotel', name: 'Hotel rooms & suites', q: 'hotel typologies', d: 'Hotel units: suites, king / twin rooms, HT units' },
     { id: 'res', name: 'Residential units (not serviced)', q: 'residential typologies', d: 'UNIT TYPE … without SV' },
+    { id: 'lv5', name: 'Everything on Level 5', q: 'L5', d: 'The floor, its floor model and every unit on it (needs the Model arrangement)' },
+    { id: 'svt2', name: 'Serviced apartments, Tower 2', q: 'T2 serviced typologies', d: 'Serviced unit types in Tower 2 with their levels' },
+    { id: 'rng', name: 'Type A units, Levels 10–20', q: 'L10-L20 Type A typologies', d: 'Unit types “Type A” on any floor from 10 to 20' },
+    { id: 'tier2', name: 'Tier 2 unit types', q: 'tier 2 typologies', d: 'Unit types on Tier 2 floors' },
+    { id: 'notmod', name: 'Unit types not modelled yet', q: 'units not modelled yet', d: 'Unit types with drawings that have no model' },
+    { id: 'latel8', name: 'Late drawings on Level 8', q: 'late drawings on L8', d: 'Late drawings of units on Level 8 (or level 8 in the number)' },
     { id: 'late', name: 'Late drawings', q: 'late', d: 'Past a stage date and not sent since' },
     { id: 'soon', name: 'Due soon', q: 'soon', d: 'Next stage date within your “due soon” days' },
     { id: 'unsent', name: 'Never sent', q: 'not sent', d: 'No submission yet' },
@@ -419,12 +484,16 @@ window.MIDP_PLUS = function (A) {
   ];
   var WORD_HELP = [
     ['Tower / building', 'T1 · Tower 2 · Res 2 · PD', 'Drawings of that building (from the number)'],
-    ['Level', 'L3 · Level 12 · GF · RF · B1', 'That level (from the number or the title)'],
+    ['Level', 'L3 · Level 12 · GF · RF · B1', 'That level (from the number, the title, or the units placed on it in the Model arrangement)'],
+    ['Level range', 'L10-L20 · levels 10-20 · L10 to L20', 'Any floor in that range'],
+    ['Tier', 'tier 2 · tier2', 'Units on that tier (Model arrangement) or “Tier 2” in the title'],
+    ['Unit letter', 'Type A · Type B1', 'Typologies of that type letter (not A1 when you ask for A)'],
     ['Drawing type', 'PLN · SEC · DET · DRG', 'The type code in the number'],
     ['Bedrooms', '1BR · 2 BR · 3 bed · studio', 'Unit types with that many bedrooms'],
     ['Unit class', 'serviced · hotel · residential', 'SV units · hotel rooms / suites · UNIT TYPE without SV'],
-    ['Status', 'late · soon · sent · not sent · no model · suggested', 'Delivery and model status'],
+    ['Status', 'late · soon · sent · not sent · no model / not modelled · suggested', 'Delivery and model status'],
     ['Show', 'models · typologies · drawings', 'Show only that kind of result'],
+    ['Ignored words', 'yet · on · in · of · the · and · with · all', 'So you can type a sentence: “late drawings on L8”'],
     ['Anything else', '1BR-A · 10100 · ceiling', 'Searched in the number, title, typology, model, lists…'],
     ['A list of numbers', 'paste 2+ drawing numbers', 'Exactly those drawings, in that order (revision ignored)']
   ];
@@ -465,7 +534,9 @@ window.MIDP_PLUS = function (A) {
   }
   function resultRows(r) {
     var out = r.drawings.map(function (d) { return { Kind: 'Drawing', Number: String(d.num).replace(/-+$/, ''), Title: d.title, Tower: bldName(d.bld), Level: lvlName(d.lvl), Type: d.type, Typology: d.typ ? d.typ.name : '', Model: d.model ? d.model.name : '', 'Model number': d.model ? d.model.num : '', 'Last submission': d.last ? d.last.label : '', Due: d.due }; });
-    r.typos.forEach(function (t) { out.push({ Kind: 'Unit type', Number: '', Title: t.name, Tower: Object.keys(t.blds).join(', '), Typology: t.name, Model: Object.keys(t.models).join(', '), Drawings: t.drawings.length }); });
+    var a = AR();
+    r.typos.forEach(function (t) { var u = a && a.byTypo[t.name]; out.push({ Kind: 'Unit type', Number: '', Title: t.name, Tower: Object.keys(t.blds).join(', '), Typology: t.name, Model: Object.keys(t.models).join(', '), Drawings: t.drawings.length,
+      Levels: u ? u.levelsText : '', Floors: u ? u.floors : '', Units: u ? u.units : '', Class: u ? u.cls.join(', ') : '', Tier: u ? u.tiers.join(', ') : '' }); });
     r.models.forEach(function (m) { out.push({ Kind: 'Model', Number: m.num, Title: m.name, Tower: bldName(m.tower), Typology: m.typ, Model: m.name, 'Model number': m.num, Drawings: m.drawings.length, Sent: m.sent }); });
     return out;
   }
@@ -528,7 +599,7 @@ window.MIDP_PLUS = function (A) {
           return '<div><h4>' + esc(x.title) + '</h4>' + x.items.slice(0, 14).map(function (it) { return '<button type="button" class="lc" data-act="lsopen" data-v="' + esc(it.id) + '">' + esc(it.name) + ' <i>' + it.rows.length + '</i></button>'; }).join('') + '</div>';
         }).join('') + '<p class="lhint">Type <b>T1 L3 PLN</b>, <b>T2 2BR</b>, <b>serviced</b>, <b>T1 models</b>, <b>late</b>, a typology like <b>1BR-A</b>, part of a number like <b>10100</b> — or paste a list of drawing numbers. All the words: 🧩 Search logic.</p></div>';
     } else if (!r.drawings.length && !r.typos.length && !r.models.length && !r.lists.length) h += '<div class="lempty">Nothing found — remove a chip above or use fewer words.</div>';
-    else h += resultBar(r) + group('Lists', r.lists, function (l) { return '<div class="lrow" data-act="lsopen" data-v="' + l.id + '"><span class="lid">📌 List</span><span class="ltt">' + esc(l.name) + '</span><span class="ltags"><span class="lt">' + members(l).length + ' drawings</span></span></div>'; }, 5, 'l') +
+    else h += resultBar(r) + levelBox(r) + group('Lists', r.lists, function (l) { return '<div class="lrow" data-act="lsopen" data-v="' + l.id + '"><span class="lid">📌 List</span><span class="ltt">' + esc(l.name) + '</span><span class="ltags"><span class="lt">' + members(l).length + ' drawings</span></span></div>'; }, 5, 'l') +
       (P.vm === 'cards' ? (r.drawings.length ? '<section class="lgroup"><h3><span>Drawings <b>' + r.drawings.length + '</b></span></h3><div class="lcards">' + r.drawings.slice(0, P.all_d ? 5000 : 60).map(dCard).join('') + '</div>' + (r.drawings.length > 60 && !P.all_d ? '<button class="lbtn" type="button" data-act="lkall" data-v="d">Show all</button>' : '') + '</section>' : '')
         : group('Drawings', r.drawings, dRow, 12, 'd')) + group('Typologies', r.typos, tRow, r.show === 'typos' ? 200 : 5, 't') + group('Models', r.models, mRow, r.show === 'models' ? 200 : 5, 'm');
     return h + '</div>' + listChips() + '</div>' + panelHtml();
@@ -538,7 +609,15 @@ window.MIDP_PLUS = function (A) {
   function panelHtml() {
     if (!P.panel || !IX) return '';
     var t = P.panel.slice(0, P.panel.indexOf(':')), v = P.panel.slice(P.panel.indexOf(':') + 1), title = '', kv = '', rows = [];
-    if (t === 'ty') { var ty = IX.typos.find(function (x) { return x.name === v; }); if (!ty) return ''; title = ty.name; rows = ty.drawings; kv = '<dt>Building</dt><dd>' + esc(Object.keys(ty.blds).join(', ')) + '</dd><dt>Models</dt><dd>' + esc(Object.keys(ty.models).join(', ') || '—') + '</dd>'; }
+    if (t === 'ty') { var ty = IX.typos.find(function (x) { return x.name === v; }); if (!ty) return ''; title = ty.name; rows = ty.drawings; kv = '<dt>Building</dt><dd>' + esc(Object.keys(ty.blds).join(', ')) + '</dd><dt>Models</dt><dd>' + esc(Object.keys(ty.models).join(', ') || '—') + '</dd>';
+      var au = (AR() || { byTypo: {} }).byTypo[ty.name], late = rows.filter(function (d) { return d.due === 'overdue'; }).length;
+      kv += '<dt>Sent</dt><dd>' + rows.filter(function (d) { return d.sends; }).length + ' of ' + rows.length + (late ? ' · <b style="color:var(--bad)">' + late + ' late</b>' : '') + '</dd>';
+      if (au) kv += '<dt class="lpa">🏢 Stacking</dt><dd class="lpa"><b>' + esc(au.name) + '</b> · ' + esc(au.cls.join(', ') || '—') + '</dd>' +
+        '<dt>Levels</dt><dd>' + esc(au.levelsText ? 'L' + au.levelsText.replace(/, /g, ', L') : 'not placed') + '</dd><dt>Floors · units</dt><dd>' + au.floors + ' floors · ' + au.units + ' units' + (au.per.length ? ' · ' + esc(au.per.join(' / ')) + ' per floor' : '') + '</dd>' +
+        '<dt>Tier</dt><dd>' + esc(au.tiers.join(', ') || '—') + '</dd><dt>Floor models</dt><dd>' + (au.fms.map(function (f) { return esc(f.name || f.num) + ' <span class="hint">L' + esc(f.text) + '</span>'; }).join('<br>') || '—') + '</dd>' +
+        (au.model ? '<dt>Typology model</dt><dd class="mono">' + esc(au.model) + '</dd>' : '');
+      else if (AR()) kv += '<dt>🏢 Stacking</dt><dd class="hint">Not matched in the Model arrangement</dd>';
+    }
     else { var m = IX.byModel.get(N(v)); if (!m) return ''; title = m.name; rows = m.drawings;
       var lv = {}; rows.forEach(function (d) { if (d.lvl && d.lvl !== 'ZZ' && d.lvl !== 'XX') lv[lvlName(d.lvl)] = 1; });
       var tys = {}; rows.forEach(function (d) { if (d.typ) tys[d.typ.name] = 1; });
@@ -600,7 +679,7 @@ window.MIDP_PLUS = function (A) {
       if (!IX) build(); if (!IX) return [];
       return IX.typos.map(function (t) {
         var b = {}; t.drawings.forEach(function (d) { b[d.bld] = (b[d.bld] || 0) + 1; });
-        return { name: t.name, blds: b, n: t.drawings.length, models: Object.keys(t.models) };
+        return { name: t.name, blds: b, n: t.drawings.length, models: Object.keys(t.models), sent: t.drawings.filter(function (d) { return d.sends; }).length, late: t.drawings.filter(function (d) { return d.due === 'overdue'; }).length };
       });
     },
     detailExtra: function (r) {
@@ -715,6 +794,7 @@ window.MIDP_PLUS = function (A) {
       if (ref.indexOf('d:') === 0) A.openDetail(ref.slice(2)); else { P.panel = ref; rerender(); }
     },
     lkpclose: function () { P.panel = ''; rerender(); },
+    lkcmp: function () { if (MIDP_EXT.arrCompare) MIDP_EXT.arrCompare(cmpKeys()); },
     lksave: function () {
       var nm = askName((P.q || '') + (P.chip ? ' · ' + CHIPS.filter(function (c) { return c[0] === P.chip; })[0][1] : '')); if (!nm) return;
       var l = { id: uid(), name: nm, kind: 'search', q: P.q, chip: P.chip, created: Date.now() }; L.lists.push(l); saveLists();
@@ -882,6 +962,10 @@ window.MIDP_PLUS = function (A) {
   css2.textContent = '.lg{display:grid;gap:12px;min-width:0}.lg-box{padding:12px;min-width:0;overflow-x:auto}.lg-t td{word-break:break-word}.tt-box{min-width:0}.lg-t{width:100%;border-collapse:collapse}.lg-t td,.lg-t th{padding:6px 8px;border-bottom:1px solid var(--edge);text-align:left;vertical-align:top;font-size:13px}.lg-acts{white-space:nowrap}.lg-acts .btn{margin-left:4px}' +
     '.lres{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}.lres .grow{flex:1}.lvm{display:inline-flex;gap:4px}' +
     '.lcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}.lcard{display:grid;gap:3px;padding:8px 10px;border:1px solid var(--edge);background:var(--panel);cursor:pointer;font-size:13px;position:relative}.lcard input{position:absolute;right:6px;top:6px}.lcard.on{outline:2px solid var(--accent)}.lcard:hover{background:var(--raise)}' +
+    '.lvbox{padding:10px 12px;margin:6px 0 10px;display:grid;gap:10px;min-width:0}.lvh{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}.lvb{display:grid;gap:6px;border-left:4px solid var(--info);padding-left:10px;min-width:0}' +
+    '.lvfm,.lvu{display:flex;flex-wrap:wrap;gap:5px}.lvfm .lt{white-space:normal}.lvc{font:inherit;font-size:12.5px;padding:3px 9px;border:1px solid var(--edge);background:var(--panel);color:var(--ink);cursor:pointer;border-radius:99px}' +
+    '.lvc:hover{border-color:var(--info)}.lvc.sv{border-color:var(--info);background:color-mix(in srgb,var(--info) 12%,var(--panel))}.lvc.ht{border-color:var(--odd);background:color-mix(in srgb,var(--odd) 12%,var(--panel))}.lvc i{font-style:normal;color:var(--muted)}.lvc i.bad{color:var(--bad)}' +
+    '.lpa{border-top:1px solid var(--edge);padding-top:6px;margin-top:4px}' +
     '.tt-box{padding:12px;margin-bottom:10px}.tt-t{width:100%}.tt-t td,.tt-t th{padding:5px 8px;font-size:13px;text-align:left;vertical-align:top}';
   document.head.appendChild(css2);
 };

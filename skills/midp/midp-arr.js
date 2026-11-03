@@ -21,7 +21,7 @@ window.MIDP_ARR = function (A) {
   var KEY = 'tidp-checker:arr';
   var D = A.readJSON(KEY, null);                 // the saved arrangement (or null)
   var PEND = null;                               // a file read, waiting in the preview
-  var UI = { b: '', f: 'all' };
+  var UI = { b: '', f: 'all', c: '', cmp: {} };
   var CLASSES = ['Residential', 'Serviced Apartment', 'Hotel Apartment', 'Hotel Room', 'Amenity', 'Retail', 'Office', 'Other'];
   var FTYPES = ['Typical', 'Ground', 'Podium', 'Amenities', 'Technical', 'Roof', 'Basement', 'Mezzanine', 'Other'];
 
@@ -365,8 +365,10 @@ window.MIDP_ARR = function (A) {
     for (i = 1; i <= a.length; i++) for (j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
     return d[a.length][b.length];
   }
-  var CK = null;
+  var CK = null, ARU = null;
+  function ensure() { if (!CK) check(); return CK; }
   function check() {
+    ARU = null;
     CK = null;
     if (!D || !S.latest) return;
     var ty = midpTypos(); if (!ty.length) { CK = { none: true, rows: [], midpOnly: [], ty: [] }; return; }
@@ -534,7 +536,7 @@ window.MIDP_ARR = function (A) {
         '<p class="hint">The latest MIDP decides the tower, typology and model. The arrangement adds the levels, tiers, units per floor and serviced / hotel floors. Anything that does not match is listed — nothing is guessed silently.</p></div></div>';
     }
     h += '</div>';
-    check();
+    ensure();
     var ur = unitRows(D), bl = bldList(D);
     if (!UI.b || bl.indexOf(UI.b) < 0) UI.b = '';
     // cards
@@ -572,12 +574,13 @@ window.MIDP_ARR = function (A) {
     var f = UI.f, rows = CK && CK.rows.length ? CK.rows : ur.map(function (x) { return { x: x, state: '', t: null, flags: [], cands: [] }; });
     rows = rows.filter(function (r) {
       if (UI.b && r.x.b !== UI.b) return false;
+      if (UI.c && !Object.keys(r.x.cls).some(function (c) { return UI.c === 'Hotel' ? /HOTEL/i.test(c) : c === UI.c; })) return false;
       if (f === 'ok') return !!r.t; if (f === 'unclear') return r.state === 'unclear'; if (f === 'none') return r.state === 'none' || r.state === 'notmidp'; if (f === 'flags') return r.flags.length;
       return f !== 'midp';
     });
     var chips = '<div class="toolbar ar-f">' + [['all', 'All'], ['ok', 'Matched'], ['unclear', 'To confirm'], ['none', 'Stacking only'], ['midp', 'MIDP only'], ['flags', 'Check']].map(function (x) {
       return '<button class="btn small' + (f === x[0] ? ' primary' : '') + '" type="button" data-act="arf" data-v="' + x[0] + '">' + x[1] + '</button>';
-    }).join('') + '<span class="grow"></span><select id="arB"><option value="">All buildings</option>' + bl.map(function (b) { return '<option' + (UI.b === b ? ' selected' : '') + '>' + esc(b) + '</option>'; }).join('') + '</select></div>';
+    }).join('') + '<span class="grow"></span><select id="arC"><option value="">All classes</option>' + ['Residential', 'Serviced Apartment', 'Hotel', 'Amenity', 'Retail', 'Office'].map(function (c) { return '<option' + (UI.c === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select><select id="arB"><option value="">All buildings</option>' + bl.map(function (b) { return '<option' + (UI.b === b ? ' selected' : '') + '>' + esc(b) + '</option>'; }).join('') + '</select></div>';
     if (f === 'midp') {
       var mo = (CK ? CK.midpOnly : []).filter(function (t) { return !UI.b || t.b === UI.b || t.tagB === UI.b; });
       h += '<div class="box hm-box">' + chips + (mo.length ? '<div class="tw free"><table class="plain"><thead><tr><th>MIDP typology</th><th>Building</th><th class="num">Drawings</th><th></th></tr></thead><tbody>' + mo.map(function (t) {
@@ -585,9 +588,14 @@ window.MIDP_ARR = function (A) {
       }).join('') + '</tbody></table></div>' : '<div class="empty">Every MIDP typology is in the arrangement.</div>') + '</div>';
       return h;
     }
-    h += '<div class="box hm-box">' + chips + (rows.length ? '<div class="tw free"><table class="plain ar-t"><thead><tr><th>Bldg</th><th>Unit type</th><th>Class</th><th>Levels</th><th class="num">Floors</th><th class="num">Units</th><th>MIDP typology</th></tr></thead><tbody>' + rows.map(function (r) {
+    UI.shown = rows;
+    var nc = Object.keys(UI.cmp).length;
+    chips += '<div class="toolbar ar-f"><span class="hint">' + A.plural(rows.length, 'unit type') + ' · ' + A.plural(rows.reduce(function (s, r) { return s + r.x.units; }, 0), 'unit') + '</span><span class="grow"></span>' +
+      '<button class="btn small' + (nc >= 2 ? ' primary' : '') + '" type="button" data-act="arcmp"' + (nc >= 2 ? '' : ' disabled') + ' title="Tick 2–4 unit types">⚖ Compare' + (nc ? ' (' + nc + ')' : '') + '</button>' +
+      (nc ? '<button class="btn small" type="button" data-act="arcmpclr">Clear ticks</button>' : '') + '<button class="btn small" type="button" data-act="arxl">⬇ Excel</button></div>';
+    h += '<div class="box hm-box">' + chips + (rows.length ? '<div class="tw free"><table class="plain ar-t"><thead><tr><th></th><th>Bldg</th><th>Unit type</th><th>Class</th><th>Levels</th><th class="num">Floors</th><th class="num">Units</th><th>MIDP typology</th></tr></thead><tbody>' + rows.map(function (r) {
       var x = r.x, st = STATE[r.state], cls = Object.keys(x.cls).join(', ');
-      return '<tr><td class="mono">' + esc(x.b) + '</td><td><b>' + esc(x.name) + '</b>' + (x.u && x.u.model ? '<br><span class="hint mono">' + esc(x.u.model) + '</span>' : '') + '</td>' +
+      return '<tr><td><input type="checkbox" data-arcmp="' + esc(x.key) + '"' + (UI.cmp[x.key] ? ' checked' : '') + ' aria-label="Tick to compare"></td><td class="mono">' + esc(x.b) + '</td><td><b>' + esc(x.name) + '</b>' + (x.u && x.u.model ? '<br><span class="hint mono">' + esc(x.u.model) + '</span>' : '') + '</td>' +
         '<td>' + (cls ? A.tag(cls.replace('Apartment', 'Apt'), /SERVIC/i.test(cls) ? 'c-info' : /HOTEL/i.test(cls) ? 'c-odd' : 'c-mute') : '') + '</td>' +
         '<td class="ar-lv">' + (x.floors ? esc(compress(x.levels)) : '<span class="hint">not placed</span>') + '</td><td class="num">' + (x.floors || '') + '</td><td class="num">' + (x.units || '') + '</td>' +
         '<td>' + (r.t ? '<a href="#" data-act="arlook" data-v="' + esc(r.t.name) + '">' + esc(r.t.name) + '</a> <span class="hint">' + r.t.n + ' dwg</span> ' : '') + (st ? A.tag(st[0], st[1], false, st[2]) : '') +
@@ -603,6 +611,73 @@ window.MIDP_ARR = function (A) {
     return h;
   }
   A.VIEWS.arr = view;
+
+  /* ---------- for the Lookup: each unit type with its levels, tiers and floor models ---------- */
+  function arrUnits() {
+    if (!D) return null;
+    if (ARU && CK) return ARU;
+    ensure();
+    var lvIx = {}; D.levels.forEach(function (l) { lvIx[l.b + ':' + l.code] = l; });
+    var byKey = {}, byTypo = {}, list = [];
+    var rows = CK && CK.rows.length ? CK.rows : unitRows(D).map(function (x) { return { x: x, t: null }; });
+    rows.forEach(function (r) {
+      var x = r.x, tiers = {}, fms = {}, per = {};
+      x.levels.forEach(function (c) {
+        var l = lvIx[x.b + ':' + c] || {};
+        if (l.tier) tiers[l.tier] = 1;
+        var fk = l.fmName || l.fm; if (fk) (fms[fk] = fms[fk] || { name: l.fmName || '', num: l.fm || '', levels: [] }).levels.push(c);
+        per[x.lv[c]] = 1;
+      });
+      var u = { key: x.key, b: x.b, name: x.name, typ: r.t ? r.t.name : '', state: r.state || '', cls: Object.keys(x.cls), lv: x.lv, levels: x.levels.slice().sort(function (a, b) { return (lvlNum(a) || 0) - (lvlNum(b) || 0); }),
+        levelsText: compress(x.levels), floors: x.floors, units: x.units, per: Object.keys(per).map(Number).sort(), tiers: Object.keys(tiers).sort(), model: x.u ? x.u.model : '',
+        fms: Object.keys(fms).map(function (k) { var f = fms[k]; f.text = compress(f.levels); return f; }).sort(function (a, b) { return (lvlNum(a.levels[0]) || 0) - (lvlNum(b.levels[0]) || 0); }) };
+      list.push(u); byKey[u.key] = u; if (u.typ) byTypo[u.typ] = u;
+    });
+    ARU = { units: list, byKey: byKey, byTypo: byTypo, levels: D.levels, lvIx: lvIx, compress: compress, file: D.file };
+    return ARU;
+  }
+
+  /* ---------- ⚖ compare unit types side by side ---------- */
+  function compare(keys) {
+    var a = arrUnits(); if (!a) return;
+    var us = keys.map(function (k) { return a.byKey[k]; }).filter(Boolean);
+    if (us.length < 2) { A.toast('Tick 2–4 unit types to compare'); return; }
+    var st = {}; (window.MIDP_EXT && MIDP_EXT.typos ? MIDP_EXT.typos() : []).forEach(function (t) { st[t.name] = t; });
+    var rows = [
+      ['Building', function (u) { return esc(u.b); }],
+      ['Class', function (u) { return esc(u.cls.join(', ') || '—'); }],
+      ['Tier', function (u) { return esc(u.tiers.join(', ') || '—'); }],
+      ['Levels', function (u) { return esc(u.levelsText || 'not placed'); }],
+      ['Floors', function (u) { return u.floors || 0; }],
+      ['Units', function (u) { return u.units || 0; }],
+      ['Units per floor', function (u) { return esc(u.per.join(' / ') || '—'); }],
+      ['Floor models', function (u) { return u.fms.map(function (f) { return esc(f.name || f.num) + ' <span class="hint">' + esc(f.text) + '</span>'; }).join('<br>') || '—'; }],
+      ['Typology model', function (u) { return '<span class="mono">' + esc(u.model || '—') + '</span>'; }],
+      ['MIDP typology', function (u) { return u.typ ? esc(u.typ) : '<span class="tag c-bad">not in the MIDP</span>'; }],
+      ['Drawings', function (u) { var t = st[u.typ]; return t ? t.n : '—'; }],
+      ['Sent', function (u) { var t = st[u.typ]; return t ? t.sent + ' of ' + t.n : '—'; }],
+      ['Late', function (u) { var t = st[u.typ]; return t ? (t.late ? '<b style="color:var(--bad)">' + t.late + '</b>' : '0') : '—'; }]
+    ];
+    var same = function (f) { var v = us.map(f); return v.every(function (x) { return x === v[0]; }); };
+    A.openDialog('<h2 id="dlgH">⚖ Compare unit types</h2><p class="hint" style="margin-top:0">Rows that differ are highlighted.</p><div class="tw free ar-cmp"><table class="plain"><thead><tr><th></th>' +
+      us.map(function (u) { return '<th>' + esc(u.b) + ' · ' + esc(u.name) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      rows.map(function (r) { return '<tr' + (same(r[1]) ? '' : ' class="ar-diff"') + '><th>' + r[0] + '</th>' + us.map(function (u) { return '<td>' + r[1](u) + '</td>'; }).join('') + '</tr>'; }).join('') +
+      '</tbody></table></div><div class="acts"><button class="btn" type="button" data-act="dlgclose">Close</button></div>');
+  }
+  function exportRows(rows) {
+    if (!rows.length) { A.toast('Nothing to export'); return; }
+    var a = arrUnits() || { byKey: {} };
+    var out = rows.map(function (r) {
+      var u = a.byKey[r.x.key] || {};
+      return { Building: r.x.b, 'Unit type': r.x.name, Class: Object.keys(r.x.cls).join(', '), Tier: (u.tiers || []).join(', '), Levels: compress(r.x.levels), Floors: r.x.floors, Units: r.x.units,
+        'Floor models': (u.fms || []).map(function (f) { return (f.name || f.num) + ' (' + f.text + ')'; }).join('; '), 'Typology model': u.model || '', 'MIDP typology': r.t ? r.t.name : '', Match: STATE[r.state] ? STATE[r.state][0] : '' };
+    });
+    var wb = XLSX.utils.book_new(), ws = XLSX.utils.json_to_sheet(out); ws['!autofilter'] = { ref: ws['!ref'] };
+    ws['!cols'] = [{ wch: 9 }, { wch: 18 }, { wch: 20 }, { wch: 16 }, { wch: 26 }, { wch: 7 }, { wch: 7 }, { wch: 50 }, { wch: 32 }, { wch: 40 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Unit types');
+    XLSX.writeFile(wb, 'Arrangement_' + [UI.b, UI.c].filter(Boolean).join('_').replace(/[^A-Za-z0-9]+/g, '_') + (UI.b || UI.c ? '_' : '') + T.todayIso() + '.xlsx');
+    A.toast('⬇ ' + A.plural(out.length, 'unit type') + ' exported');
+  }
 
   // a small box in Files
   var vf = A.VIEWS.files;
@@ -625,24 +700,35 @@ window.MIDP_ARR = function (A) {
     },
     ardel: function () {
       if (!UI.del) { UI.del = true; A.render(); setTimeout(function () { UI.del = false; }, 4000); return; }
-      UI.del = false; D = null; CK = null; try { localStorage.removeItem(KEY); } catch (e) {} A.render(); A.toast('Arrangement removed');
+      UI.del = false; D = null; CK = null; ARU = null; try { localStorage.removeItem(KEY); } catch (e) {} A.render(); A.toast('Arrangement removed');
     },
     arpicks: function () {
       var n = 0; D.picks = D.picks || {};
       document.querySelectorAll('[data-arpick]').forEach(function (s) { if (s.value) { D.picks[s.getAttribute('data-arpick')] = s.value; n++; } });
-      save(); A.render(); A.toast(n ? A.plural(n, 'pick') + ' saved' : 'Nothing picked');
+      save(); CK = null; A.render(); A.toast(n ? A.plural(n, 'pick') + ' saved' : 'Nothing picked');
     },
-    arunpick: function (el) { if (D && D.picks) { delete D.picks[el.getAttribute('data-v')]; save(); A.render(); } },
+    arunpick: function (el) { if (D && D.picks) { delete D.picks[el.getAttribute('data-v')]; save(); CK = null; A.render(); } },
+    arcmp: function () { compare(Object.keys(UI.cmp)); },
+    arcmpclr: function () { UI.cmp = {}; A.render(); },
+    arxl: function () { exportRows(UI.shown || []); },
     arlook: function (el) { var v = el.getAttribute('data-v'); if (window.MIDP_EXT && MIDP_EXT.lookFor) MIDP_EXT.lookFor(v); else A.go('lookup'); }
   });
   document.addEventListener('change', function (e) {
     var el = e.target;
     if (el.id === 'arFile') { if (el.files[0]) readFile(el.files[0]); el.value = ''; }
     if (el.id === 'arB') { UI.b = el.value; A.render(); }
+    if (el.id === 'arC') { UI.c = el.value; A.render(); }
+    if (el.hasAttribute && el.hasAttribute('data-arcmp')) {
+      var k = el.getAttribute('data-arcmp');
+      if (el.checked) { if (Object.keys(UI.cmp).length >= 4) { el.checked = false; A.toast('Up to 4 unit types'); return; } UI.cmp[k] = 1; } else delete UI.cmp[k];
+      A.render();
+    }
   });
   var ext = window.MIDP_EXT || (window.MIDP_EXT = {}), prev = ext.afterCompute;
   ext.afterCompute = function () { if (prev) prev(); CK = null; };
   ext.arrangement = function () { return D; };            // for later phases (Lookup, stacking view)
+  ext.arrUnits = arrUnits;                                 // the Lookup: levels, tier, class of each MIDP typology
+  ext.arrCompare = compare;
 
   // for the tests
   window.MIDP_ARR_API = { parse: parse, expandLevels: expandLevels, compress: compress, sig: sig, unitRows: unitRows, check: function () { check(); return CK; }, get: function () { return D; } };
@@ -654,6 +740,7 @@ window.MIDP_ARR = function (A) {
     '.ar-t td{vertical-align:top}.ar-lv{min-width:120px;word-break:break-word}.ar-flag{color:var(--warn);font-size:12px}' +
     '.ar-picks{display:grid;gap:6px}.ar-pick{display:grid;grid-template-columns:minmax(140px,220px) 1fr;gap:8px;align-items:center}.ar-pick select{min-width:0;max-width:100%}' +
     '.ar-ch{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;font-size:12.5px;margin-top:8px;word-break:break-word}' +
-    '@media(max-width:560px){.ar-pick{grid-template-columns:1fr}.ar-t th:nth-child(3),.ar-t td:nth-child(3){display:none}}';
+    '.ar-cmp th{text-align:left;white-space:nowrap}.ar-cmp td{vertical-align:top;min-width:140px}.ar-diff{background:color-mix(in srgb,var(--warn) 12%,transparent)}' +
+    '@media(max-width:560px){.ar-pick{grid-template-columns:1fr}.ar-t th:nth-child(4),.ar-t td:nth-child(4){display:none}}';
   document.head.appendChild(css);
 };

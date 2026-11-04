@@ -452,12 +452,31 @@ window.MIDP_FOLDER = function (A) {
     });
     if (q) rows = rows.filter(function (x) { return U([x.num, x.title, x.g ? Object.keys(x.g.paths).join(' ') : ''].join(' ')).indexOf(q) >= 0; });
     var MT = { exact: ['Match', 'c-ok'], rev: ['Match · other rev', 'c-ok'], title: ['Title only', 'c-warn'], none: ['Not in MIDP', 'c-bad'] };
+    // Tower · Typology · Model of each line — from the MIDP drawing, also when the file is not in the folder yet
+    var TTM = new Map();
+    var ttm = function (x) {
+      if (!x.r) return null;
+      if (TTM.has(x.r.key)) return TTM.get(x.r.key);
+      var r = (A.rowByKey && A.rowByKey(x.r.key)) || x.r; r.v = r.v || {};
+      var i = (MIDP_EXT.info && MIDP_EXT.info(r.key)) || {}, mi = A.mInfo(r);
+      var o = { tower: r.v.Tower || i.bld || '', towerSrc: r.v.Tower ? 'set' : i.bld ? 'number' : '',
+        typ: r.v.Typology || (i.typ && i.typ.name) || '', typSrc: r.v.Typology ? 'set' : i.typ ? (i.typ.guess ? 'guess' : 'title') : '',
+        model: mi.num || '', modelName: mi.model ? mi.model.name : '', sugg: mi.state === 'suggested' ? mi.sugg.model : null };
+      o.needTyp = unitish(r.title) || !!o.typ;
+      TTM.set(r.key, o); return o;
+    };
     var cols = [
       { k: 'idx', label: '#', w: 46, cls: 'num', text: function (x) { return String(x.idx); }, sortKey: function (x) { return x.idx; } },
       { k: 'num', label: 'Number (in the list)', w: 250, stick: true, cls: 'mono', text: function (x) { return x.num; }, html: function (x) { return (x.r ? A.numLink(x.num, x.r.key) : esc(x.num)) + (x.listTwice ? ' <span class="tag c-warn" title="This drawing is in more than one list of this set">' + ((x.lists || []).length > 1 ? 'in ' + x.lists.length + ' lists' : 'twice in list') + '</span>' : ''); } },
       { k: 'list', label: 'List', w: 150, text: function (x) { return (x.lists || []).join(', '); } },
       { k: 'midp', label: 'MIDP', w: 130, text: function (x) { return (MT[x.match] || MT.none)[0]; }, html: function (x) { var m = MT[x.match] || MT.none; return A.tag(m[0], m[1], false, x.r ? x.r.num : ''); } },
       { k: 'title', label: 'Title', w: 300, text: function (x) { return x.title || ''; } },
+      { k: 'tower', label: 'Tower', w: 90, text: function (x) { var t = ttm(x); return t ? t.tower : ''; }, html: function (x) { var t = ttm(x); return t ? tagSrc(t.tower, t.towerSrc) : ''; } },
+      { k: 'typ', label: 'Typology', w: 230, text: function (x) { var t = ttm(x); return t ? t.typ : ''; }, html: function (x) { var t = ttm(x); return !t ? '' : t.needTyp || t.typ ? tagSrc(t.typ, t.typSrc) : '<span class="muted">— common</span>'; } },
+      { k: 'model', label: 'Model number', w: 220, text: function (x) { var t = ttm(x); return t ? t.model || (t.sugg ? t.sugg.num : '') : ''; }, html: function (x) {
+        var t = ttm(x); if (!t) return '';
+        if (t.model) return '<span class="mono" title="' + esc(t.modelName) + '">' + esc(t.model) + '</span>';
+        return t.sugg ? '<span class="mono">' + esc(t.sugg.num) + '</span> <span class="tag c-warn" title="Suggested — confirm it in Model assignment">suggested</span>' : '<span class="muted" title="Optional">—</span>'; } },
       { k: 'in', label: 'In folder', w: 110, text: function (x) { return { in: 'Yes', part: 'File missing', missing: 'No' }[st(x)]; }, html: function (x) { var s2 = st(x); return A.tag({ in: '✓ Yes', part: 'File missing', missing: '✗ No' }[s2], { in: 'c-ok', part: 'c-warn', missing: 'c-bad' }[s2]); } }
     ].concat(req.map(function (e) {
       return { k: 'x' + e, label: e.toUpperCase(), w: 76, text: function (x) { return String(x.g ? x.g.exts[e] || 0 : 0); }, html: function (x) { return cntTag(x.g, e); }, sortKey: function (x) { return x.g ? x.g.exts[e] || 0 : 0; } };
@@ -510,7 +529,7 @@ window.MIDP_FOLDER = function (A) {
         '<td>' + (r ? esc(r.title) : '<span class="tag c-bad">Not in MIDP</span>') + '</td>' +
         '<td>' + (m && m.r ? esc([m.tower, m.typ ? T.drawingUnitKey(m.typ) : '', m.model ? m.model.split('-').pop() : ''].filter(Boolean).join(' · ')) +
           (m.typSrc === 'guess' ? ' <span class="tag c-warn" title="Typology guessed from the number family — confirm it with ✎ in By drawing">guess</span>' : '') +
-          (m.needs && m.needs.length ? ' <span class="tag c-bad" title="Missing: ' + esc(m.needs.join(', ')) + '">' + esc(m.needs.join(' · ').toLowerCase()) + ' missing</span>' : '') : '') + '</td>' +
+          (m.needs && m.needs.filter(function (x) { return x !== 'Model'; }).length ? ' <span class="tag c-bad" title="Missing: ' + esc(m.needs.filter(function (x) { return x !== 'Model'; }).join(', ')) + '">' + esc(m.needs.filter(function (x) { return x !== 'Model'; }).join(' · ').toLowerCase()) + ' missing</span>' : '') : '') + '</td>' +
         (B.sb ? '<td>' + (listed.has(k) ? A.tag('In the list', 'c-ok') : A.tag('Not in the list', 'c-mute')) + '</td>' : '') + '</tr>';
     }).join('');
     var nd = Object.keys(groups).length;
@@ -688,7 +707,7 @@ window.MIDP_FOLDER = function (A) {
       { k: 'model', label: 'Model', w: 220, text: function (g) { return g.model || (g.sugg ? g.sugg.num : ''); }, html: function (g) {
         if (!g.r || g.absent) return '';
         if (g.model) return '<span class="mono">' + esc(g.model) + '</span>';
-        return g.sugg ? '<span class="mono">' + esc(g.sugg.num) + '</span> <button class="btn small" type="button" data-act="fdsugg1" data-v="' + esc(g.key) + '" title="Accept the suggested model">✓</button>' : '<span class="tag c-bad">missing</span>'; } },
+        return g.sugg ? '<span class="mono">' + esc(g.sugg.num) + '</span> <button class="btn small" type="button" data-act="fdsugg1" data-v="' + esc(g.key) + '" title="Accept the suggested model">✓</button>' : '<span class="muted" title="Optional">—</span>'; } },
       { k: 'fix', label: '', w: 44, nosort: true, nofilter: true, text: function () { return ''; }, html: function (g) { return g.r && !g.absent ? '<button class="btn small" type="button" data-act="fdfix1" data-v="' + esc(g.key) + '" title="Set Tower / Typology / Model">✎</button>' : ''; } },
       { k: 'tgt', label: 'Submission', w: 100, text: function (g) { return g.target || ''; }, html: function (g) { return g.target ? A.tag(g.target === 'Part' ? 'File missing' : g.target, { Ready: 'c-ok', Part: 'c-warn', Missing: 'c-bad', Extra: 'c-mute' }[g.target]) : ''; } },
       { k: 'where', label: 'Where', w: 150, text: function (g) { return g.absent ? '' : (g.nExp ? 'Export ' + g.nExp + ' ' : '') + (g.nSrt ? 'Sorted ' + g.nSrt : ''); }, html: function (g) { return g.absent ? '' : whereTag(g); } },

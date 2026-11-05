@@ -811,11 +811,35 @@ html.lt-pixel .logo { background: var(--accent); }
 
   /* ===== 7b. Checklist generator — one task + its checklist items in one go (replaces the Excel ADD TASK macro) ===== */
   // MIDP Checker data (same browser storage): its lists + the drawing summary it keeps up to date
+  // the lists offered: Lookup lists + saved searches, every Drawing set (and each list in it), every loaded submission
   function midpData() {
-    var X = readJSON('tidp-checker:index', null), L = (readJSON('tidp-checker:lists', {}) || {}).lists || [];
-    return { X: X && X.rows ? X : null, lists: L };
+    var X = readJSON('tidp-checker:index', null), out = [];
+    ((readJSON('tidp-checker:lists', {}) || {}).lists || []).forEach(function (l) { out.push(Object.assign({ grp: 'Lookup lists' }, l)); });
+    var store = readJSON('tidp-checker:tracker:v1', {}) || {}, subs = store.subs || [];
+    var subItems = function (id) { var sb = subs.filter(function (x) { return x.id === id; })[0]; return sb ? sb.items || [] : []; };
+    var box = readJSON('tidp-checker:folder', null), sets = box && box.sets ? box.sets : box && box.files ? [box] : [];
+    sets.forEach(function (st) {
+      var all = [];
+      (st.lists || []).forEach(function (l) {
+        var e = l.sub ? subItems(l.sub) : l.entries || [];
+        all = all.concat(e);
+        out.push({ grp: 'Drawing sets', kind: 'entries', name: (st.name || 'Set') + ' › ' + l.name, entries: e });
+      });
+      if ((st.lists || []).length > 1) out.push({ grp: 'Drawing sets', kind: 'entries', name: (st.name || 'Set') + ' — all its lists', entries: all });
+    });
+    subs.slice().sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); }).forEach(function (sb) {
+      out.push({ grp: 'Submissions', kind: 'entries', name: [sb.date, sb.type || sb.ref, sb.file].filter(Boolean).join(' · '), entries: sb.items || [] });
+    });
+    return { X: X && X.rows ? X : null, lists: out.filter(function (l) { return l.kind !== 'entries' || l.entries.length; }) };
   }
+  function baseNum(n) { var p = String(n || '').toUpperCase().replace(/\s+/g, '').replace(/-+$/, '').split('-'); if (p.length > 5 && /^([A-Z]\d{1,3}|P\d{2}|\d{2,3})$/.test(p[p.length - 1])) p.pop(); return p.join('-'); }
   function midpRows(list, X) {
+    if (list.kind === 'entries') {      // a drawing list: its own numbers, the MIDP title when the number is in the MIDP
+      var by = {}; ((X && X.rows) || []).forEach(function (r) { by[baseNum(r[1])] = r; });
+      var seen0 = {};
+      return (list.entries || []).filter(function (e) { var k = baseNum(e.num); if (!k || seen0[k]) return false; seen0[k] = 1; return true; })
+        .map(function (e) { var r = by[baseNum(e.num)]; return r ? [r[0], e.num, r[2] || e.title || ''] : [e.num, e.num, e.title || '']; });
+    }
     if (!X) return [];
     var rows = X.rows, seen = {}, out = [];
     var add = function (r) { if (!seen[r[0]]) { seen[r[0]] = 1; out.push(r); } };
@@ -852,8 +876,10 @@ html.lt-pixel .logo { background: var(--accent); }
       '<label data-gpane="rows" hidden>No. of rows<input id="gN" type="number" min="1" max="200" value="10"></label>' +
       '<label data-gpane="rows" hidden>Name them<input id="gPrefix" value="Item"></label>' +
       '<label class="full" data-gpane="midp" hidden>Your MIDP Checker list' +
-        (md.X ? '<select id="gMidp"><option value="">Pick a list…</option>' + md.lists.map(function (l, i) { return '<option value="' + i + '">' + (l.kind === 'search' ? '⚡ ' : '📌 ') + esc(l.name) + '</option>'; }).join('') + '</select>'
-              : '<span class="small">Open the MIDP Checker once and load the MIDP — then your lists show here.</span>') + '</label>' +
+        (md.lists.length ? '<select id="gMidp"><option value="">Pick a list…</option>' + ['Drawing sets', 'Lookup lists', 'Submissions'].map(function (g) {
+            var opts = md.lists.map(function (l, i) { return l.grp !== g ? '' : '<option value="' + i + '">' + (l.kind === 'search' ? '⚡ ' : l.kind === 'entries' ? (g === 'Submissions' ? '📅 ' : '📦 ') : '📌 ') + esc(l.name) + (l.kind === 'entries' ? ' (' + l.entries.length + ')' : '') + '</option>'; }).join('');
+            return opts ? '<optgroup label="' + g + '">' + opts + '</optgroup>' : ''; }).join('') + '</select>'
+              : '<span class="small">No lists yet — in the MIDP Checker make a list (Lookup › Lists), add a list to a Drawing set, or load a submission. Then it shows here.</span>') + '</label>' +
       '</div><p class="small" id="gInfo"></p>' +
       '<div class="foot"><span class="small">Items without their own assignee / date get the task\'s.</span><div style="display:flex;gap:8px"><button class="btn" data-close>Cancel</button>' +
       '<button class="btn" data-gencreate="1">Create</button><button class="btn primary" data-gencreate="2">Create &amp; make Excel</button></div></div>');

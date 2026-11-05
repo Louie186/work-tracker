@@ -121,11 +121,10 @@ window.MIDP_PLUS = function (A) {
     });
   }
   var sumT = null;
-  function writeSummary() {
-    clearTimeout(sumT);
-    sumT = setTimeout(function () {
-      if (!IX) return;
-      A.writeJSON(IKEY, { at: new Date().toISOString(), file: S.latest && S.latest.file, sent: IX.drawings.filter(function (d) { return d.sends; }).length,
+  // the summary other tools read (To Do links, Delegation checklists)
+  function summary() {
+    if (!IX) build(); if (!IX) return null;
+    return { at: new Date().toISOString(), file: S.latest && S.latest.file, sent: IX.drawings.filter(function (d) { return d.sends; }).length,
         overdue: IX.drawings.filter(function (d) { return d.due === 'overdue'; }).length,
         models: IX.models.map(function (m) { return [m.num, m.name]; }),
         // 12+ (for the To Do links): number without revision, due state, due date, stage, times sent, number before your correction
@@ -133,7 +132,13 @@ window.MIDP_PLUS = function (A) {
           d.base, d.due, d.dueIso, d.stage, d.sends, d.obase,
           // 18+ (Delegation checklist): the Tower you set (else the number's), model sure?
           (function () { var row = A.rowByKey ? A.rowByKey(d.key) : null; return row && row.v && T.txt(row.v.Tower) || d.bld; })(), d.model ? (d.model.sure ? 1 : 0) : '']; }),
-        lists: L.lists.map(function (l) { return [l.id, l.name, members(l).slice(0, 3000).map(function (d) { return d.key; })]; }) });
+        lists: L.lists.map(function (l) { return [l.id, l.name, members(l).slice(0, 3000).map(function (d) { return d.key; })]; }) };
+  }
+  function writeSummary() {
+    clearTimeout(sumT);
+    sumT = setTimeout(function () {
+      if (!IX) return;
+      A.writeJSON(IKEY, summary());
     }, 800);
   }
 
@@ -678,6 +683,9 @@ window.MIDP_PLUS = function (A) {
     // the stacking view: run a search without showing it · make a list
     search: function (q) { if (!IX) build(); var r = search(q, ''); return { drawings: r.drawings, typos: r.typos.map(function (t) { return t.name; }), toks: r.pq.toks || [] }; },
     makeList: function (name, refs) { var l = newList(name, refs); P.open = l.id; saveUI(); A.go('lists'); return l; },
+    summary: function () { return summary(); },               // Delegation reads it live (also when the browser storage is full)
+    lookupLists: function () { return L.lists; },
+    saveLists: function () { saveLists(); },
     lookFor: function (q) { P.q = q; P.chip = ''; P.f = {}; addRecent(q); saveUI(); A.go('lookup'); },
     // each typology with the buildings of its drawings (Model arrangement check)
     typos: function () {

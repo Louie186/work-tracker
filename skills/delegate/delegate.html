@@ -349,6 +349,7 @@ html.lt-pixel .logo { background: var(--accent); }
     $('fGroup').value = UI.group;
     $('fPerson').innerHTML = '<option value="">Everyone</option>' + people().map(function (n) { return '<option>' + esc(n) + '</option>'; }).join('');
     $('fPerson').value = UI.person;
+    MX = null;                                   // MIDP tags: read again (the MIDP Checker may have changed)
     $('fStatus').value = UI.status; $('q').value = UI.q; $('fDone').checked = UI.showDone;
     var list = visible();
     if (!D.tasks.length) { $('main').innerHTML = '<div class="card empty"><b>No team tasks yet</b>Click <b>+ Task</b> to give out the first one, or send a list from a tool in ⚡ Skills (e.g. Models by level).</div>'; return; }
@@ -897,12 +898,26 @@ html.lt-pixel .logo { background: var(--accent); }
   /* ===== 7b. Checklist generator — one task + its checklist items in one go (replaces the Excel ADD TASK macro) ===== */
   // MIDP Checker data (same browser storage): its lists + the drawing summary it keeps up to date
   // the lists offered: Lookup lists + saved searches, every Drawing set (and each list in it), every loaded submission
+  // the MIDP Checker open in Lew's Tracker: read its lists live (they show even if the browser could not save them)
+  function liveMidp() {
+    try {
+      var w = window.parent; if (!w || w === window) return null;
+      var fr = w.document.querySelectorAll('iframe');
+      for (var i = 0; i < fr.length; i++) { var cw = fr[i].contentWindow; if (cw && cw.MIDP && cw.MIDP.S && cw.MIDP_EXT) return cw; }
+    } catch (e) {}
+    return null;
+  }
   function midpData() {
-    var X = readJSON('tidp-checker:index', null), out = [];
-    ((readJSON('tidp-checker:lists', {}) || {}).lists || []).forEach(function (l) { out.push(Object.assign({ grp: 'Lookup lists' }, l)); });
-    var store = readJSON('tidp-checker:tracker:v1', {}) || {}, subs = store.subs || [];
+    var live = liveMidp(), lx = null;
+    try { lx = live && live.MIDP_EXT.summary ? live.MIDP_EXT.summary() : null; } catch (e) { lx = null; }
+    var X = lx && lx.rows ? lx : readJSON('tidp-checker:index', null), out = [];
+    if (lx && lx.rows) MX = null;
+    var lk = null; try { lk = live && live.MIDP_EXT.lookupLists ? live.MIDP_EXT.lookupLists() : null; } catch (e) {}
+    (lk || (readJSON('tidp-checker:lists', {}) || {}).lists || []).forEach(function (l) { out.push(Object.assign({ grp: 'Lookup lists' }, l)); });
+    var store = (live && live.MIDP.S.store) || readJSON('tidp-checker:tracker:v1', {}) || {}, subs = store.subs || [];
     var subItems = function (id) { var sb = subs.filter(function (x) { return x.id === id; })[0]; return sb ? sb.items || [] : []; };
-    var box = readJSON('tidp-checker:folder', null), sets = box && box.sets ? box.sets : box && box.files ? [box] : [];
+    var lsets = null; try { lsets = live && live.MIDP_SETS_RAW ? live.MIDP_SETS_RAW() : null; } catch (e) {}
+    var box = lsets ? { sets: lsets } : readJSON('tidp-checker:folder', null), sets = box && box.sets ? box.sets : box && box.files ? [box] : [];
     sets.forEach(function (st) {
       var all = [];
       (st.lists || []).forEach(function (l) {
@@ -920,9 +935,10 @@ html.lt-pixel .logo { background: var(--accent); }
     try { pName = pj && pj.list ? (pj.list.filter(function (x) { return x.id === pj.active; })[0] || {}).name || '' : ''; } catch (e) {}
     var used = 0; try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); used += k.length + (localStorage.getItem(k) || '').length; } } catch (e) {}
     var n = function (g) { return lists.filter(function (l) { return l.grp === g; }).length; };
-    var diag = 'Found in this browser (' + location.host + (pName ? ' · project ' + pName : '') + '): ' + n('Drawing sets') + ' Drawing set lists · ' + n('Submissions') + ' submissions · ' + n('Lookup lists') + ' Lookup lists · MIDP ' +
-      (X && X.rows ? 'loaded' + (X.file ? ' (' + X.file + ')' : '') : 'not loaded') + ' · storage ' + (used * 2 / 1048576).toFixed(1) + ' MB of ~5 MB';
-    return { X: X && X.rows ? X : null, lists: lists, diag: diag, full: used * 2 > 4.6 * 1048576 };
+    var diag = (live ? 'Read live from the open MIDP Checker' : 'Read from saved data — open the MIDP Checker tab once for live data') + ' (' + location.host + (pName ? ' · project ' + pName : '') + '): ' + n('Drawing sets') + ' Drawing set lists · ' + n('Submissions') + ' submissions · ' + n('Lookup lists') + ' Lookup lists · MIDP ' +
+      (X && X.rows ? 'loaded' + (X.file ? ' (' + X.file + ')' : '') : 'not loaded') + ' · storage ' + (used / 1048576).toFixed(1) + ' MB of ~5 MB';
+    if (X && X.rows) { MX = { X: X, by: {} }; X.rows.forEach(function (r) { var k = baseNum(r[1]); if (k && !MX.by[k]) MX.by[k] = r; if (r[17]) { var o = baseNum(r[17]); if (o && !MX.by[o]) MX.by[o] = r; } }); }
+    return { X: X && X.rows ? X : null, lists: lists, diag: diag, full: used > 4.6 * 1048576 };
   }
   function baseNum(n) { var p = String(n || '').toUpperCase().replace(/\s+/g, '').replace(/-+$/, '').split('-'); if (p.length > 5 && /^([A-Z]\d{1,3}|P\d{2}|\d{2,3})$/.test(p[p.length - 1])) p.pop(); return p.join('-'); }
   /* ----- live link to the MIDP Checker: each checklist item that is a drawing shows Tower · Typology · Model ----- */
@@ -930,7 +946,9 @@ html.lt-pixel .logo { background: var(--accent); }
   function midpIx() {
     if (MX) return MX.X ? MX : null;
     MX = { X: null, by: {} };
-    var X = readJSON('tidp-checker:index', null);
+    var lv = liveMidp(), X = null;
+    try { X = lv && lv.MIDP_EXT.summary ? lv.MIDP_EXT.summary() : null; } catch (e) { X = null; }
+    if (!X || !X.rows) X = readJSON('tidp-checker:index', null);
     if (X && X.rows) { MX.X = X; X.rows.forEach(function (r) { var k = baseNum(r[1]); if (k && !MX.by[k]) MX.by[k] = r; if (r[17]) { var o = baseNum(r[17]); if (o && !MX.by[o]) MX.by[o] = r; } }); }
     return MX.X ? MX : null;
   }

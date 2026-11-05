@@ -218,6 +218,12 @@ tbody tr:hover td { background: var(--raise); }
 tbody tr.hl td { background: var(--hl); box-shadow: inset 0 2px 0 var(--accent), inset 0 -2px 0 var(--accent); }
 tr.removed td { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--bad); }
 td.empty { text-align: center; padding: 20px; white-space: normal; }
+.st-full { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 60; background: var(--bad); color: #fff; padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; box-shadow: 0 6px 20px rgba(0,0,0,.3); font-size: 13px; line-height: 1.4; }
+.st-full[hidden] { display: none; } .st-full .btn { background: #fff; color: #222; border-color: #fff; }
+.st-list { display: grid; gap: 2px; max-height: 55vh; overflow: auto; }
+.st-row { display: grid; grid-template-columns: minmax(140px, 1.2fr) 2fr auto auto; gap: 8px; align-items: center; padding: 4px 2px; border-bottom: 1px solid var(--edge); font-size: 12.5px; }
+.st-row .mono { word-break: break-all; }
+@media (max-width: 640px) { .st-row { grid-template-columns: 1fr auto auto; } .st-row .hint { display: none; } }
 /* descriptions: a little smaller, up to 2 lines inside the cell — the whole title shows (full text on hover) */
 td.desc { font-size: 11.5px; line-height: 1.25; }
 td.desc .dclamp { white-space: normal; word-break: break-word; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
@@ -1657,7 +1663,53 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
   const EDIT_COLS = { wstat: 'Work Status', who: 'Assigned To', notes: 'Notes', Tower: 'Tower', Typology: 'Typology', model: 'Model Number' };
 
   function readJSON(k, d) { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? d : v; } catch (e) { return d; } }
-  function writeJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+  function writeJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { storageFull(k); return false; } }
+  /* ---------- the browser storage is full: say so clearly, show what uses the space, let you free it and save again ---------- */
+  let ST_FULL = null;
+  function storageUse() {
+    const out = []; let all = 0;
+    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i), n = k.length + (localStorage.getItem(k) || '').length; all += n; out.push({ k: k, n: n }); } } catch (e) {}
+    out.sort(function (a, b) { return b.n - a.n; });
+    return { all: all, keys: out };
+  }
+  // safe to clear: history-like data that the checker can live without (asked first)
+  const ST_CLEAR = {
+    'tidp-checker:log': 'MIDP Checker — change log of your edits (old history)',
+    'tidp-checker:versions': 'MIDP Checker — old MIDP versions (Changes keeps the previous one in the file store)',
+    'tidp-checker:history': 'MIDP Checker — upload history list',
+    'lews_register_backups': 'Register (classic) — old backups',
+    'lews_register_state_v1': 'Register (classic) — its data (only if you no longer use the classic Register)',
+    'lews_register_recent': 'Register (classic) — recent searches'
+  };
+  function clearWhy(k) { return ST_CLEAR[k] || (/^lews_register_/.test(k) ? 'Register (classic) — old data (only if you no longer use the classic Register)' : ''); }
+  function storageFull(k) {
+    ST_FULL = { k: k, at: Date.now() };
+    let el = document.getElementById('stFull');
+    if (!el) { el = document.createElement('div'); el.id = 'stFull'; el.className = 'st-full'; document.body.appendChild(el); }
+    const u = storageUse();
+    el.innerHTML = '<b>⚠ Not saved — this browser’s storage is full</b> (' + (u.all / 1048576).toFixed(1) + ' MB used). Your latest changes are only on screen: other tools (Delegation, To Do) can’t see them and they are lost when you close the page. ' +
+      '<button class="btn small" type="button" data-act="stclean">Free some space</button><button class="btn small" type="button" data-act="export">Export Excel (backup)</button><button class="btn small" type="button" data-act="stx" aria-label="Hide">✕</button>';
+    el.hidden = false;
+  }
+  function storageDialog() {
+    const u = storageUse();
+    openDialog('<h2 id="dlgH">💾 What uses this browser’s storage</h2><p class="hint" style="margin-top:0">' + (u.all / 1048576).toFixed(2) + ' MB of about 5 MB (counted in characters, as the browser does). Export a backup first if you are unsure. Clearing only removes the item named — your MIDP, entries, lists and submissions stay.</p>' +
+      '<div class="st-list">' + u.keys.slice(0, 16).map(function (x) {
+        const why = clearWhy(x.k);
+        return '<div class="st-row"><span class="mono">' + esc(x.k) + '</span><span class="hint">' + esc(why || '') + '</span><b>' + (x.n / 1048576 >= 0.1 ? (x.n / 1048576).toFixed(2) + ' MB' : Math.round(x.n / 1024) + ' KB') + '</b>' +
+          (why ? '<button class="btn small" type="button" data-act="stdel" data-v="' + esc(x.k) + '">Clear</button>' : '<span></span>') + '</div>';
+      }).join('') + '</div>' +
+      '<div class="acts"><button class="btn" type="button" data-act="dlgclose">Close</button><button class="btn primary" type="button" data-act="stsave">Save again now</button></div>');
+  }
+  function saveAllAgain() {
+    ST_FULL = null;
+    saveStore(true); saveMeta();
+    if (window.MIDP_SETS_SAVE) MIDP_SETS_SAVE();
+    if (window.MIDP_EXT && MIDP_EXT.saveLists) MIDP_EXT.saveLists();
+    if (window.MIDP_EXT && MIDP_EXT.summary) writeJSON('tidp-checker:index', MIDP_EXT.summary());
+    if (!ST_FULL) { const el = document.getElementById('stFull'); if (el) el.hidden = true; toast('✓ Everything saved'); closeDialog(); }
+    else toast('Still not enough space — clear one more item');
+  }
 
   const prefersDark = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
   const SET = Object.assign({ skin: 'gb', mode: prefersDark ? 'dark' : 'light', soonDays: 14, tab: 'INT', hidden: {}, widths: {} }, readJSON(KEYS.settings, {}));
@@ -3857,6 +3909,10 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
       if (CF && CF.name === g && CF.k === k) closeCF(); else openCF(g, k, el);
     },
     cfclose: closeCF,
+    stclean: storageDialog,
+    stx: function () { const el = document.getElementById('stFull'); if (el) el.hidden = true; },
+    stdel: function (el) { const k = el.getAttribute('data-v'); if (!confirm('Clear “' + (clearWhy(k) || k) + '”?')) return; try { localStorage.removeItem(k); } catch (e) {} if (k === 'tidp-checker:log') LOG.length = 0; if (k === 'tidp-checker:history') HIST.length = 0; storageDialog(); toast('Cleared — now press “Save again now”'); },
+    stsave: saveAllAgain,
     gcols: function (el) { const n = el.getAttribute('data-grid'); if (CF && CF.colsPanel === n) { closeCF(); return; } closeCF(); openColsPanel(n, el); },
     gcol: function (el) {
       const n = el.getAttribute('data-grid'), k = el.getAttribute('data-k'), p = colPref(n), hide = new Set(p.hide || []);

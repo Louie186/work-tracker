@@ -643,6 +643,8 @@ window.MIDP_FOLDER = function (A) {
     return out;
   };
   function listEntriesOf(x, l) { if (l.sub) { var sb = A.subsByDate().filter(function (y) { return y.id === l.sub; })[0]; return sb ? sb.items || [] : []; } return l.entries || []; }
+  window.MIDP_SETS_RAW = function () { return BOX.sets; };
+  window.MIDP_SETS_SAVE = function () { save(); };
   window.MIDP_SETS_INFO = function () { return BOX.sets.map(setInfo).filter(function (x) { return x.total; }); };
   function setBar() {
     var h = '<div class="fd-sets"><div class="chips">' + BOX.sets.map(function (x) {

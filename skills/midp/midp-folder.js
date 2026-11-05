@@ -32,7 +32,8 @@ window.MIDP_FOLDER = function (A) {
   }
   function fixSet(x) {
     x = Object.assign({ id: 's' + Date.now().toString(36), name: 'New set', date: '', root: '', at: 0, files: [], lists: [], ui: {} }, x);
-    x.ui = Object.assign({ deep: true, req: ['pdf', 'dwg'], group: ['tower', 'typ'], mode: 'copy', f: '', q: '', view: 'list', lf: '', tpath: '', tname: '', tskip: '' }, x.ui || {});
+    x.ui = Object.assign({ deep: true, req: ['pdf', 'dwg'], group: ['tower', 'typ'], mode: 'copy', f: '', q: '', view: 'quick', lf: '', tpath: '', tname: '', tskip: '' }, x.ui || {});
+    if (!x.ui.qv) { x.ui.qv = 1; x.ui.view = 'quick'; }          // Quick check is the start view (once, for older sets too)
     return x;
   }
   BOX.sets = BOX.sets.map(fixSet);
@@ -436,6 +437,75 @@ window.MIDP_FOLDER = function (A) {
     return (g.nExp ? '<span class="tag c-mute" title="Still in the export folder, not sorted yet">Export ' + g.nExp + '</span> ' : '') + (g.nSrt ? '<span class="tag c-info" title="In _Sorted / the target folder">Sorted ' + g.nSrt + '</span>' : '');
   }
   /* 📋 the submission list as the checklist: every drawing of the list, where it is, how many files */
+  // Tower · Typology · Model of a MIDP drawing — also when its file is not in the folder yet
+  var TTM = new Map(), TTMfor = null;
+  function ttmOf(r0) {
+    if (!r0) return null;
+    if (TTMfor !== CACHE) { TTM = new Map(); TTMfor = CACHE; }
+    if (TTM.has(r0.key)) return TTM.get(r0.key);
+    var r = (A.rowByKey && A.rowByKey(r0.key)) || r0; r.v = r.v || {};
+    var i = (MIDP_EXT.info && MIDP_EXT.info(r.key)) || {}, mi = A.mInfo(r);
+    var o = { tower: r.v.Tower || i.bld || '', towerSrc: r.v.Tower ? 'set' : i.bld ? 'number' : '',
+      typ: r.v.Typology || (i.typ && i.typ.name) || '', typSrc: r.v.Typology ? 'set' : i.typ ? (i.typ.guess ? 'guess' : 'title') : '',
+      model: mi.num || '', modelName: mi.model ? mi.model.name : '', sugg: mi.state === 'suggested' ? mi.sugg.model : null };
+    o.needTyp = unitish(r.title) || !!o.typ;
+    TTM.set(r0.key, o); return o;
+  }
+
+  /* ---------- ⚡ Quick check: one compact line per drawing — quantity, files, MIDP / list match ---------- */
+  function quickRows(B) {
+    var out = [], used = new Set(), MT = { exact: 'ok', rev: 'rev', title: 'title', none: 'no' };
+    if (B.sb) B.list.forEach(function (x) {
+      if (x.g) used.add(x.g);
+      out.push({ key: x.key, num: x.g ? x.g.num : x.num, rev: x.g ? x.g.rev : x.rev || '', title: x.title || '', r: x.r, g: x.g, list: 'yes', twice: x.listTwice, midp: x.r ? MT[x.match] || 'ok' : 'no' });
+    });
+    B.rows.forEach(function (g) {
+      if (used.has(g)) return;
+      out.push({ key: 'q:' + g.key, num: g.num, rev: g.rev, title: g.r ? g.title : '', r: g.r, g: g, list: B.sb ? 'extra' : '', midp: g.r ? 'ok' : 'no', near: g.near });
+    });
+    out.forEach(function (x) { x.t = ttmOf(x.r); });
+    return out;
+  }
+  function quickState(x, req) {
+    if (!x.g) return 'missing';
+    if (x.midp === 'no' || x.list === 'extra') return 'bad';
+    if (req.some(function (e) { return !x.g.exts[e]; }) || x.g.dupe || x.twice || x.midp === 'title' || (x.t && ((x.t.needTyp && !x.t.typ) || x.t.typSrc === 'guess' || !x.t.tower))) return 'check';
+    return 'ok';
+  }
+  function quickView(B, u) {
+    var req = u.req, all = quickRows(B), q = U(u.q), f = u.qf || '';
+    var c = { ok: 0, check: 0, missing: 0, bad: 0 }; all.forEach(function (x) { x.st = quickState(x, req); c[x.st]++; });
+    var fileN = {}; req.forEach(function (e) { fileN[e] = all.filter(function (x) { return x.g && x.g.exts[e] && (!B.sb || x.list === 'yes'); }).length; });
+    var inList = B.sb ? B.list.length : 0, inFolder = all.filter(function (x) { return x.g && (!B.sb || x.list === 'yes'); }).length;
+    // the quantity line — what you count by hand
+    var h = '<div class="box fd-qsum"><span><b>' + (B.sb ? inList : '—') + '</b> in the list' + (B.sb ? '' : ' <span class="hint">(add a list above)</span>') + '</span>' +
+      '<span><b>' + inFolder + '</b> ' + (B.sb ? 'of them in the folder' : 'drawings in the folder') + '</span>' + req.map(function (e) { return '<span><b>' + fileN[e] + '</b> ' + esc(e.toUpperCase()) + (B.sb ? ' <span class="hint">of ' + inList + '</span>' : '') + '</span>'; }).join('') +
+      (B.sb ? '<span class="' + (B.missing.length ? 'bad' : '') + '"><b>' + B.missing.length + '</b> missing</span><span class="' + (c.bad ? 'bad' : '') + '"><b>' + all.filter(function (x) { return x.list === 'extra'; }).length + '</b> extra</span>' : '') +
+      '<span class="' + (all.some(function (x) { return x.midp === 'no'; }) ? 'bad' : '') + '"><b>' + all.filter(function (x) { return x.midp === 'no'; }).length + '</b> not in the MIDP</span></div>';
+    var F3 = [['', 'All', all.length], ['ok', '✅ OK', c.ok], ['check', '⚠ To check', c.check], ['missing', '❌ Missing', c.missing], ['bad', '⛔ Extra / not in MIDP', c.bad]];
+    h += '<div class="toolbar"><div class="chips">' + F3.map(function (k) { return '<button class="chip" type="button" data-act="fdqf" data-v="' + k[0] + '" aria-pressed="' + (f === k[0]) + '">' + esc(k[1]) + '<span class="c">' + k[2] + '</span></button>'; }).join('') + '</div>' +
+      '<span class="grow"></span><input type="search" id="fdQ" data-fd="q" placeholder="Search number, title, tower, typology" value="' + esc(u.q) + '"></div>';
+    var rows = all.filter(function (x) { return !f || x.st === f; });
+    if (q) rows = rows.filter(function (x) { return U([x.num, x.title, x.t ? x.t.tower + ' ' + x.t.typ + ' ' + x.t.model : ''].join(' ')).indexOf(q) >= 0; });
+    var DOT = { ok: ['●', 'var(--ok)', 'OK'], check: ['●', 'var(--warn)', 'To check'], missing: ['●', 'var(--bad)', 'Not in the folder'], bad: ['●', 'var(--bad)', 'Extra or not in the MIDP'] };
+    var MID = { ok: ['✓', 'c-ok', 'Same number in the MIDP'], rev: ['✓ rev', 'c-ok', 'In the MIDP — other revision'], title: ['≈', 'c-warn', 'Only the title matches the MIDP — check the number'], no: ['✗', 'c-bad', 'Not in the MIDP'] };
+    var cols = [
+      { k: 'st', label: '', w: 28, nofilter: true, text: function (x) { return DOT[x.st][2]; }, html: function (x) { var d = DOT[x.st]; return '<span style="color:' + d[1] + '" title="' + d[2] + '">' + d[0] + '</span>'; } },
+      { k: 'num', label: 'Drawing number', w: 245, stick: true, cls: 'mono', text: function (x) { return x.num; }, html: function (x) { return (x.r ? A.numLink(x.num, x.r.key) : esc(x.num)) + (x.near ? ' <span class="hint" title="Did you mean">→ ' + esc(x.near.num) + '?</span>' : ''); } },
+      { k: 'rev', label: 'Rev', w: 74, text: function (x) { return x.rev || ''; } },
+      { k: 'title', label: 'Description', w: 330, text: function (x) { return x.title || ''; } }
+    ].concat(req.map(function (e) {
+      return { k: 'x' + e, label: e.toUpperCase(), w: 76, text: function (x) { var n = x.g ? x.g.exts[e] || 0 : 0; return n ? (n > 1 ? '×' + n : '✓') : '✗'; }, html: function (x) { var n = x.g ? x.g.exts[e] || 0 : 0; return '<span class="fd-qx ' + (!n ? 'no' : n > 1 ? 'dbl' : 'ok') + '">' + (n ? (n > 1 ? '×' + n : '✓') : '✗') + '</span>'; }, sortKey: function (x) { return x.g ? x.g.exts[e] || 0 : 0; } };
+    })).concat([
+      { k: 'midp', label: 'MIDP', w: 84, text: function (x) { return MID[x.midp][0]; }, html: function (x) { var m = MID[x.midp]; return '<span class="tag ' + m[1] + '" title="' + m[2] + '">' + m[0] + '</span>'; } }
+    ]).concat(B.sb ? [{ k: 'list', label: 'List', w: 80, text: function (x) { return x.list === 'yes' ? '✓' : '✗ extra'; }, html: function (x) { return x.list === 'yes' ? '<span class="tag c-ok"' + (x.twice ? ' title="In the list twice / in two lists">✓ ×2' : '>✓') + '</span>' : '<span class="tag c-bad" title="In the folder, not in the list">extra</span>'; } }] : []).concat([
+      { k: 'tower', label: 'Tower', w: 86, text: function (x) { return x.t ? x.t.tower : ''; }, html: function (x) { return !x.t ? '' : x.t.tower ? esc(x.t.tower) : '<span class="tag c-bad">?</span>'; } },
+      { k: 'typ', label: 'Typology', w: 220, text: function (x) { return x.t ? x.t.typ : ''; }, html: function (x) { var t = x.t; if (!t) return ''; if (t.typ) return esc(t.typ) + (t.typSrc === 'guess' ? ' <span class="tag c-warn" title="Guessed — confirm it">?</span>' : ''); return t.needTyp ? '<span class="tag c-bad">missing</span>' : '<span class="muted">— common</span>'; } },
+      { k: 'model', label: 'Model', w: 200, text: function (x) { return x.t ? x.t.model || (x.t.sugg ? x.t.sugg.num : '') : ''; }, html: function (x) { var t = x.t; if (!t) return ''; if (t.model) return '<span class="mono" title="' + esc(t.modelName) + '">' + esc(t.model) + '</span>'; return t.sugg ? '<span class="mono muted" title="Suggested">' + esc(t.sugg.num) + ' ?</span>' : '<span class="muted" title="Optional">—</span>'; } }
+    ]);
+    return h + A.grid('fdquick', rows, cols, { title: 'Quick check', key: function (x) { return x.key; }, empty: 'Nothing here.' }).html;
+  }
+
   function listView(B, u) {
     var L = B.list, q = U(u.q), req = u.req, f = u.lf || '';
     var st = function (x) { var g = x.g; return !g ? 'missing' : req.some(function (e) { return !g.exts[e]; }) ? 'part' : 'in'; };
@@ -452,19 +522,7 @@ window.MIDP_FOLDER = function (A) {
     });
     if (q) rows = rows.filter(function (x) { return U([x.num, x.title, x.g ? Object.keys(x.g.paths).join(' ') : ''].join(' ')).indexOf(q) >= 0; });
     var MT = { exact: ['Match', 'c-ok'], rev: ['Match · other rev', 'c-ok'], title: ['Title only', 'c-warn'], none: ['Not in MIDP', 'c-bad'] };
-    // Tower · Typology · Model of each line — from the MIDP drawing, also when the file is not in the folder yet
-    var TTM = new Map();
-    var ttm = function (x) {
-      if (!x.r) return null;
-      if (TTM.has(x.r.key)) return TTM.get(x.r.key);
-      var r = (A.rowByKey && A.rowByKey(x.r.key)) || x.r; r.v = r.v || {};
-      var i = (MIDP_EXT.info && MIDP_EXT.info(r.key)) || {}, mi = A.mInfo(r);
-      var o = { tower: r.v.Tower || i.bld || '', towerSrc: r.v.Tower ? 'set' : i.bld ? 'number' : '',
-        typ: r.v.Typology || (i.typ && i.typ.name) || '', typSrc: r.v.Typology ? 'set' : i.typ ? (i.typ.guess ? 'guess' : 'title') : '',
-        model: mi.num || '', modelName: mi.model ? mi.model.name : '', sugg: mi.state === 'suggested' ? mi.sugg.model : null };
-      o.needTyp = unitish(r.title) || !!o.typ;
-      TTM.set(r.key, o); return o;
-    };
+    var ttm = function (x) { return ttmOf(x.r); };
     var cols = [
       { k: 'idx', label: '#', w: 46, cls: 'num', text: function (x) { return String(x.idx); }, sortKey: function (x) { return x.idx; } },
       { k: 'num', label: 'Number (in the list)', w: 250, stick: true, cls: 'mono', text: function (x) { return x.num; }, html: function (x) { return (x.r ? A.numLink(x.num, x.r.key) : esc(x.num)) + (x.listTwice ? ' <span class="tag c-warn" title="This drawing is in more than one list of this set">' + ((x.lists || []).length > 1 ? 'in ' + x.lists.length + ' lists' : 'twice in list') + '</span>' : ''); } },
@@ -658,10 +716,11 @@ window.MIDP_FOLDER = function (A) {
         '<button class="kpi" type="button" data-act="fdf" data-v="t:Missing"><span class="v" style="color:var(--bad)">' + B.missing.length + '</span><span class="l">Missing (expected)</span></button>' +
         '<button class="kpi" type="button" data-act="fdf" data-v="t:Extra"><span class="v">' + t.Extra + '</span><span class="l">Extra (not in the list)</span></button></div>';
     }
-    var view = u.view === 'list' && !B.sb ? 'folder' : u.view || 'folder';
-    h += '<div class="toolbar"><div class="chips">' + (B.sb ? '<button class="chip" type="button" data-act="fdview" data-v="list" aria-pressed="' + (view === 'list') + '">📋 By submission list</button>' : '') +
+    var view = u.view === 'list' && !B.sb ? 'quick' : u.view || 'quick';
+    h += '<div class="toolbar"><div class="chips"><button class="chip" type="button" data-act="fdview" data-v="quick" aria-pressed="' + (view === 'quick') + '">⚡ Quick check</button>' + (B.sb ? '<button class="chip" type="button" data-act="fdview" data-v="list" aria-pressed="' + (view === 'list') + '">📋 By submission list</button>' : '') +
       '<button class="chip" type="button" data-act="fdview" data-v="folder" aria-pressed="' + (view === 'folder') + '">📁 By drawing</button>' +
       '<button class="chip" type="button" data-act="fdview" data-v="tree" aria-pressed="' + (view === 'tree') + '">🌳 Folder tree</button></div></div>';
+    if (view === 'quick') return h + quickView(B, u) + sortHtml(u);
     if (view === 'list') return h + listView(B, u) + sortHtml(u);
     if (view === 'tree') return h + treeView(B, u) + sortHtml(u);
     h += '<div class="toolbar"><div class="chips">' + KINDS.map(function (k) { return k[0] === '' || counts[k[0]] ? '<button class="chip" type="button" data-act="fdf" data-v="' + k[0] + '" aria-pressed="' + (u.f === k[0]) + '">' + esc(k[1]) + '<span class="c">' + (counts[k[0]] || 0) + '</span></button>' : ''; }).join('') +
@@ -783,6 +842,7 @@ window.MIDP_FOLDER = function (A) {
       A.toast('✓ Recorded in Submissions: ' + name + ' · ' + A.plural(sb.items.length, 'drawing'));
     },
     fdtf: function (el) { F.ui.tf = el.getAttribute('data-v'); save(); A.render(); },
+    fdqf: function (el) { F.ui.qf = el.getAttribute('data-v'); save(); A.render(); },
     fdview: function (el) { F.ui.view = el.getAttribute('data-v'); save(); A.render(); },
     fdlf: function (el) { var v = el.getAttribute('data-v'); F.ui.lf = F.ui.lf === v && v ? '' : v; save(); A.render(); },
     fdtarget: function () {
@@ -832,6 +892,9 @@ window.MIDP_FOLDER = function (A) {
 
   var css = document.createElement('style');
   css.textContent = '.fd-top{padding:10px 12px;margin-bottom:10px}.fd-k{margin:8px 0}.fd-k .kpi{cursor:pointer;text-align:left}' +
+    '.fd-qsum{display:flex;flex-wrap:wrap;gap:6px 18px;padding:10px 12px;margin:8px 0;font-size:13px}.fd-qsum b{font-size:18px;margin-right:3px}.fd-qsum .bad b{color:var(--bad)}' +
+    '.tw[data-grid="fdquick"] td{padding:3px 6px;font-size:12.5px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tw[data-grid="fdquick"] th{font-size:12px;white-space:nowrap}' +
+    '.fd-qx{font-weight:700}.fd-qx.ok{color:var(--ok)}.fd-qx.no{color:var(--bad)}.fd-qx.dbl{color:var(--warn)}' +
     '.fd-sort{margin-top:14px;padding:12px}.fd-tree{display:flex;flex-wrap:wrap;gap:6px;max-height:220px;overflow:auto}' +
     '.fd-node{font-size:12px;border:1px solid var(--edge);padding:3px 8px;background:var(--panel)}.fd-node b{color:var(--accent);margin-left:4px}.fd-node.warn{border-style:dashed}' +
     '.fd-tgt{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:6px 0;padding:8px;border:1px dashed var(--edge)}.fd-tg{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}.fd-tg input{min-width:260px;max-width:100%}' +

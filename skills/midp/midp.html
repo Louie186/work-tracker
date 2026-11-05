@@ -218,6 +218,9 @@ tbody tr:hover td { background: var(--raise); }
 tbody tr.hl td { background: var(--hl); box-shadow: inset 0 2px 0 var(--accent), inset 0 -2px 0 var(--accent); }
 tr.removed td { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--bad); }
 td.empty { text-align: center; padding: 20px; white-space: normal; }
+/* descriptions: a little smaller, up to 2 lines inside the cell — the whole title shows (full text on hover) */
+td.desc { font-size: 11.5px; line-height: 1.25; }
+td.desc .dclamp { white-space: normal; word-break: break-word; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 /* sticky left columns (tick + drawing number) */
 th.stk { position: sticky; z-index: 4; }
 td.stk { position: sticky; z-index: 1; box-shadow: 1px 0 0 var(--raise); }
@@ -2556,6 +2559,7 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
     if (['num', 'title', 'tower', 'typ', 'idx', 'st'].indexOf(c.k) > -1) return true;
     return /^(#|drawing( number| no\.?)?|number|description|title|tower|typolog)/i.test(String(c.label).trim());
   }
+  function isDesc(c) { return !c.edit && (c.k === 'title' || /^(description|title|midp title)$/i.test(String(c.label || '').trim())); }
   function colPref(name) { SET.cols = SET.cols || {}; return SET.cols[name] || { hide: [], order: [] }; }
   function colOrdered(name, cols) {
     const p = colPref(name), order = p.order || [];
@@ -2641,8 +2645,8 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
         if (c.edit) {
           return '<td class="edit' + stk(i) + '" contenteditable="true" spellcheck="false" data-key="' + esc(r.key) + '" data-field="' + esc(c.edit) + '" title="' + esc(r.v[c.edit] || '') + '">' + esc(r.v[c.edit] || '') + '</td>';
         }
-        const text = cellText(c, r);
-        return '<td class="' + (c.cls || '') + stk(i) + '"' + (text ? ' title="' + esc(text) + '"' : '') + '>' + (c.html ? c.html(r) : esc(text)) + '</td>';
+        const text = cellText(c, r), desc = isDesc(c);
+        return '<td class="' + (c.cls || '') + (desc ? ' desc' : '') + stk(i) + '"' + (text ? ' title="' + esc(text) + '"' : '') + '>' + (desc ? '<div class="dclamp">' : '') + (c.html ? c.html(r) : esc(text)) + (desc ? '</div>' : '') + '</td>';
       }).join('') + '</tr>';
     });
     h += '</tbody></table>';

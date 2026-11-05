@@ -130,7 +130,9 @@ window.MIDP_PLUS = function (A) {
         models: IX.models.map(function (m) { return [m.num, m.name]; }),
         // 12+ (for the To Do links): number without revision, due state, due date, stage, times sent, number before your correction
         rows: IX.drawings.map(function (d) { return [d.key, d.num, d.title, d.rev, d.bld, d.lvl, d.type, d.typ ? d.typ.name : '', d.model ? d.model.num : '', d.model ? d.model.name : '', d.last ? d.last.label : '', bldName(d.bld),
-          d.base, d.due, d.dueIso, d.stage, d.sends, d.obase]; }),
+          d.base, d.due, d.dueIso, d.stage, d.sends, d.obase,
+          // 18+ (Delegation checklist): the Tower you set (else the number's), model sure?
+          (function () { var row = A.rowByKey ? A.rowByKey(d.key) : null; return row && row.v && T.txt(row.v.Tower) || d.bld; })(), d.model ? (d.model.sure ? 1 : 0) : '']; }),
         lists: L.lists.map(function (l) { return [l.id, l.name, members(l).slice(0, 3000).map(function (d) { return d.key; })]; }) });
     }, 800);
   }

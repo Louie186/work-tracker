@@ -19,7 +19,7 @@
   var box = { top: thin, left: thin, bottom: thin, right: thin };
   var H = 5;            // header row on the Tasks sheet
   // A ID · B Task / checklist item · C Group · D Assignee · E Target date · F Status · G Progress · H Notes
-  var COLS = [['ID', 8], ['Task / Checklist item', 46], ['Group', 18], ['Assignee', 18], ['Target date', 13], ['Status', 14], ['Progress', 10], ['Notes', 44]];
+  var COLS = [['ID', 8], ['Task / Checklist item', 46], ['Group', 18], ['Assignee', 18], ['Target date', 13], ['Status', 14], ['Progress', 10], ['Notes', 44], ['Tower · Typology · Model', 42]];
 
   function fill(argb) { return { type: 'pattern', pattern: 'solid', fgColor: { argb: argb } }; }
   function toDate(s) {
@@ -50,7 +50,7 @@
     COLS.forEach(function (c, i) { ws.getColumn(i + 1).width = c[1]; });
 
     // title bar (row 1) + info line (row 2) + how-to line (row 3)
-    ws.mergeCells('A1:H1');
+    ws.mergeCells('A1:I1');
     var t1 = ws.getCell('A1');
     t1.value = clean('TASK PLAN   |   ' + (plan.project || ''));
     t1.font = { name: FONT, bold: true, size: 14, color: { argb: C.white } }; t1.fill = fill(C.title); t1.alignment = { vertical: 'middle', indent: 1 };
@@ -114,6 +114,7 @@
         ws.getCell(r, 6).value = okStatus(s.status);
         ws.getCell(r, 7).value = { formula: pct(r) };
         ws.getCell(r, 8).value = clean(s.notes);
+        if (s.info) ws.getCell(r, 9).value = clean(s.info);
         fillIn(r);
         ws.getRow(r).outlineLevel = 1;
         Object.defineProperty(ws.getRow(r), 'collapsed', { value: false });   // shown rows must not be marked "collapsed"

@@ -163,6 +163,17 @@ textarea { font: inherit; }
 .form .full { grid-column: 1 / -1; }
 @media (max-width: 600px) { .form { grid-template-columns: 1fr; } }
 .subs { margin-top: 12px; }
+/* MIDP tags on checklist items */
+.mi { display: inline-flex; flex-wrap: wrap; gap: 3px; margin-left: 6px; vertical-align: middle; }
+.mc { font-size: 10.5px; line-height: 1.5; padding: 0 6px; border-radius: 99px; border: 1px solid var(--line, #d9d4c7); color: var(--muted); white-space: nowrap; background: var(--card, transparent); }
+.mc.tw { color: var(--ink); font-weight: 700; } .mc.ty { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.mc.md { font-family: ui-monospace, monospace; } .mc.md.sug { border-style: dashed; } .mc.ok { color: #2e7d32; border-color: #2e7d3255; } .mc.bad { color: #c62828; border-color: #c6282866; }
+.subrow.sub-c .s-meta { grid-column: 2 / -1; margin-top: -2px; } .subrow.sub-c .s-meta:empty { display: none; } .subrow.sub-c .s-meta .mi { margin-left: 0; }
+.subrow.sub-c[hidden] { display: none; }
+.subrow.sub-c .s-no { display: flex; align-items: center; gap: 2px; justify-content: flex-end; cursor: pointer; } .subrow.sub-c .s-no input { margin: 0; width: 13px; height: 13px; }
+.sub-bulk { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; padding: 5px 6px; margin: 2px 0 6px; border: 1px dashed var(--line, #d9d4c7); border-radius: 8px; }
+.sub-bulk[hidden] { display: none; } .sub-bulk select, .sub-bulk input { padding: 3px 6px; font-size: 12px; width: auto; max-width: 180px; } .sub-bulk .grow { flex: 1; } .sub-bulk select[hidden] { display: none; }
+.gshare span { display: flex; gap: 6px; align-items: center; color: var(--ink); } .gshare input { width: auto; }
 /* compact task editor */
 .btn.xs { padding: 2px 7px; font-size: 11.5px; line-height: 1.3; } .btn.xs.on { border-color: var(--accent); }
 .form.ecompact { grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 8px; } .form.ecompact > label { grid-column: span 3; } .form.ecompact > label:first-child { grid-column: span 2; } .form.ecompact > label.span3 { grid-column: span 10; } .form.ecompact > label.full { grid-column: 1 / -1; }
@@ -171,11 +182,11 @@ textarea { font: inherit; }
 .subs-h { display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; } .subs-b { display: flex; gap: 5px; flex-wrap: wrap; }
 .bulk { margin: 6px 0; } .bulk textarea { width: 100%; font: 12.5px/1.45 ui-monospace, monospace; } .bulk-r { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; align-items: center; } .bulk-r input { flex: 1; min-width: 120px; padding: 4px 8px; font-size: 12px; } .bulk-r .grow { flex: 1; }
 #eSubs { counter-reset: sub; }
-.sub-hd, .subrow.sub-c { display: grid; grid-template-columns: 26px minmax(0, 1fr) 130px 128px 112px 30px 26px; gap: 4px; align-items: center; }
+.sub-hd, .subrow.sub-c { display: grid; grid-template-columns: 34px minmax(0, 1fr) 130px 128px 112px 30px 26px; gap: 4px; align-items: center; }
 .sub-hd { font-size: 11px; color: var(--muted); padding: 0 0 2px; }
 .subrow.sub-c { margin-bottom: 3px; }
 .subrow.sub-c input, .subrow.sub-c select { padding: 4px 6px; font-size: 12.5px; min-width: 0; }
-.subrow.sub-c .s-no { font-size: 11px; color: var(--muted); text-align: right; } .subrow.sub-c .s-no::before { counter-increment: sub; content: counter(sub); }
+.subrow.sub-c .s-no { font-size: 11px; color: var(--muted); text-align: right; } .subrow.sub-c .s-no span::before { counter-increment: sub; content: counter(sub); }
 .subrow.sub-c textarea { grid-column: 2 / -1; min-height: 30px; font-size: 12px; padding: 4px 6px; }
 .subrow.sub-c textarea[hidden] { display: none; }
 #modalCard .foot .btn { padding: 5px 12px; font-size: 12.5px; }
@@ -362,7 +373,7 @@ html.lt-pixel .logo { background: var(--accent); }
     if (hasSubs && open) t.subs.forEach(function (s) {
       var due = s.due || t.due;
       h += '<div class="trow sub' + (s.status === 'Completed' ? ' done' : '') + '"><span></span><span class="code">' + esc(s.code) + '</span>' +
-        '<div class="ttl" data-edit="' + t.id + '"><span>↳ ' + esc(s.title) + '</span>' + (s.notes ? '<small>' + esc(s.notes) + '</small>' : '') + '</div>' +
+        '<div class="ttl" data-edit="' + t.id + '"><span>↳ ' + esc(s.title) + '</span>' + chipsHtml(s) + (s.notes ? '<small>' + esc(s.notes) + '</small>' : '') + '</div>' +
         whoHtml(s.assignees) + '<span class="due' + (isLate(due, s.status) ? ' late' : '') + '">' + esc(fmtDate(due)) + '</span>' +
         statusCell(s, false, t.id, s.id) + progHtml(val(s.status)) + '</div>';
     });
@@ -430,10 +441,12 @@ html.lt-pixel .logo { background: var(--accent); }
     var t = id ? findTask(id) : Object.assign({ id: '', code: '(new)', title: '', group: UI.group && UI.group !== '_none' ? UI.group : '', assignees: '', due: '', status: 'Not started', notes: '', subs: [], history: [] }, preset || {});
     var dl = '<datalist id="ppl">' + people().map(function (n) { return '<option value="' + esc(n) + '">'; }).join('') + '</datalist>';
     var subRow = function (s) {
-      return '<div class="subrow sub-c" data-sid="' + esc(s.id || '') + '"><span class="s-no" title="' + esc(s.code || 'new') + '"></span><input class="s-title" placeholder="Checklist item" value="' + esc(s.title) + '">' +
+      var inf = infoOf(s) || {};
+      return '<div class="subrow sub-c" data-sid="' + esc(s.id || '') + '" data-ref="' + esc(s.ref || '') + '" data-tower="' + esc(inf.tower || '') + '" data-typ="' + esc(inf.typS || '') + '"><label class="s-no" title="' + esc(s.code || 'new') + ' — tick to assign in bulk"><input type="checkbox" class="s-pick"><span></span></label><input class="s-title" placeholder="Checklist item" value="' + esc(s.title) + '">' +
         '<input class="s-who" list="ppl" placeholder="Assigned to" value="' + esc(s.assignees) + '"><input class="s-due" type="date" value="' + esc(s.due) + '">' +
         '<select class="s-st">' + ST.map(function (x) { return '<option' + (x === s.status ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select>' +
         '<button class="btn xs' + (s.notes ? ' on' : '') + '" type="button" data-act="snote" title="Notes">📝</button><button class="btn xs danger" type="button" data-delsub title="Remove item">×</button>' +
+        '<div class="s-meta">' + chipsHtml(s) + '</div>' +
         '<textarea class="s-notes" placeholder="Notes"' + (s.notes ? '' : ' hidden') + '>' + esc(s.notes) + '</textarea></div>';
     };
     openModal('<h2><span>' + (id ? esc(t.code) + ' — Edit task' : 'New task') + '</span><button class="icon" data-close>×</button></h2>' + dl +
@@ -449,15 +462,54 @@ html.lt-pixel .logo { background: var(--accent); }
       '<div id="eBulk" hidden class="pastewrap bulk"><p class="small" style="margin:0 0 4px">One name per line, in order. Change any line, add lines for new items. A blank line removes that item.</p><textarea id="eBulkText" rows="8"></textarea>' +
         '<div class="bulk-r"><input id="eFind" placeholder="Find (e.g. -T1)"><input id="eRepl" placeholder="Replace with (e.g. -T2)"><button class="btn xs" type="button" data-act="efr">Replace in all names</button><span class="grow"></span><button class="btn xs" type="button" data-act="ebulk">Cancel</button><button class="btn xs primary" type="button" data-act="ebulkok">Apply names</button></div></div>' +
       '<div id="ePaste" hidden class="pastewrap">' + pasteBox('ePasteBox', 'Paste rows from Excel or the MIDP Checker — one item per row') + '<div style="display:flex;justify-content:flex-end;gap:6px;margin-top:6px"><button class="btn sm" data-act="epaste">Cancel</button><button class="btn sm primary" data-act="epasteadd">Add as subtasks</button></div></div>' +
+      '<div class="sub-bulk" id="eBulkBar"><label class="small"><input type="checkbox" id="ePickAll"> All</label><select id="eFTower" title="Show one tower"></select><select id="eFTyp" title="Show one typology"></select>' +
+        '<span class="small" id="ePickN"></span><span class="grow"></span><input id="eAssignTo" list="ppl" placeholder="Person"><button class="btn xs" type="button" data-act="eassign" title="Give the ticked items to this person">Assign ticked</button>' +
+        '<button class="btn xs" type="button" data-act="eshare" title="Share the ticked items (or all shown) evenly between the group members / the task’s people">⚖ Share out</button><button class="btn xs" type="button" data-act="esort" title="Sort by tower, then typology">↕ Sort</button></div>' +
       '<div class="sub-hd"><span>#</span><span>Item</span><span>Assigned to</span><span>Date</span><span>Status</span><span></span></div>' +
       '<div id="eSubs">' + t.subs.map(subRow).join('') + '</div><p class="small" style="margin:4px 0 0">The task is done when all its items are done. Items without a person / date get the task’s.</p></div>' +
       (id && window.LTTodoLink && LTTodoLink.api() ? '<div class="subs"><b>My To Do</b> <span class="small">a reminder for you, linked to this task</span><div style="margin-top:6px">' + LTTodoLink.html({ f: 'deleg', t: 't', k: t.id, label: t.code + ' ' + t.title, title: 'Follow up ' + t.code + ' ' + t.title + (t.assignees ? ' (' + t.assignees + ')' : ''), due: t.due }) + '</div></div>' : '') +
       (t.history && t.history.length ? '<div class="hist"><b>History</b><br>' + t.history.slice(-12).reverse().map(function (h) { return esc(new Date(h.at).toLocaleString()) + ' — ' + esc(h.text); }).join('<br>') + '</div>' : '') +
       '<div class="foot"><div>' + (id ? '<button class="btn sm danger" data-deltask="' + id + '">Delete task</button>' : '') + '</div><div style="display:flex;gap:8px"><button class="btn sm" data-close>Cancel</button><button class="btn sm primary" data-savetask="' + (id || '') + '">Save</button></div></div>');
     $('modalCard').__subRow = subRow;
+    var mc = $('modalCard');
+    mc.onchange = function (e) {
+      var x = e.target;
+      if (x.id === 'ePickAll') { shownRows().forEach(function (r) { r.querySelector('.s-pick').checked = x.checked; }); bulkBar(); }
+      else if (x.id === 'eFTower' || x.id === 'eFTyp' || (x.classList && x.classList.contains('s-pick'))) bulkBar();
+      else if (x.classList && x.classList.contains('s-title')) refreshRow(x.closest('.subrow'));
+    };
+    bulkBar();
     setTimeout(function () { $('eTitle').focus(); }, 50);
   }
-  function subCount() { var n = document.querySelectorAll('#eSubs .subrow').length, el = $('eSubN'); if (el) el.textContent = n ? '(' + n + ')' : ''; }
+  // a renamed item: its drawing (and tags) follow the new number
+  function refreshRow(r) {
+    if (!r) return;
+    var t = r.querySelector('.s-title').value, ref = refFromTitle(t) || r.getAttribute('data-ref') || '', f = infoOf({ title: t, ref: ref }) || {};
+    r.setAttribute('data-ref', ref); r.setAttribute('data-tower', f.tower || ''); r.setAttribute('data-typ', f.typS || '');
+    r.querySelector('.s-meta').innerHTML = chipsHtml({ title: t, ref: ref }); bulkBar();
+  }
+  function shownRows() { return Array.prototype.filter.call(document.querySelectorAll('#eSubs .subrow'), function (r) { return !r.hidden; }); }
+  function picked() { return shownRows().filter(function (r) { return r.querySelector('.s-pick').checked; }); }
+  // the tower / typology pickers and the "N ticked" line of the checklist
+  function bulkBar() {
+    var bar = $('eBulkBar'); if (!bar) return;
+    var rows = Array.prototype.slice.call(document.querySelectorAll('#eSubs .subrow'));
+    bar.hidden = !rows.length;
+    var fill = function (id, attr, all) {
+      var sel = $(id), cur = sel.value, o = {};
+      rows.forEach(function (r) { var v = r.getAttribute(attr); if (v) o[v] = (o[v] || 0) + 1; });
+      var keys = Object.keys(o).sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true }); });
+      sel.innerHTML = '<option value="">' + all + '</option>' + keys.map(function (k) { return '<option value="' + esc(k) + '"' + (k === cur ? ' selected' : '') + '>' + esc(k) + ' (' + o[k] + ')</option>'; }).join('');
+      sel.hidden = !keys.length;
+    };
+    fill('eFTower', 'data-tower', 'All towers'); fill('eFTyp', 'data-typ', 'All typologies');
+    var ft = $('eFTower').value, fy = $('eFTyp').value;
+    rows.forEach(function (r) { r.hidden = (ft && r.getAttribute('data-tower') !== ft) || (fy && r.getAttribute('data-typ') !== fy); });
+    var n = picked().length, shown = shownRows().length;
+    $('ePickN').textContent = (n ? n + ' ticked' : 'Tick items to assign them') + (shown < rows.length ? ' · showing ' + shown + ' of ' + rows.length : '');
+  }
+  function subCount() {
+    bulkBar(); var n = document.querySelectorAll('#eSubs .subrow').length, el = $('eSubN'); if (el) el.textContent = n ? '(' + n + ')' : ''; }
   window.DELEG_OPEN = function (id) { if (findTask(id)) editor(id); };   // Lew's Tracker: open a task from a To Do link
   function saveEditor(id) {
     var title = $('eTitle').value.trim();
@@ -483,6 +535,7 @@ html.lt-pixel .logo { background: var(--accent); }
       var st = row.querySelector('.s-title').value.trim(); if (!st) return;
       var sid = row.getAttribute('data-sid'), old = sid && t.subs.filter(function (x) { return x.id === sid; })[0];
       var s = old || { id: uid('s'), code: t.code + '.' + (++maxN) };
+      s.ref = refFromTitle(st) || row.getAttribute('data-ref') || s.ref || ''; if (!s.ref) delete s.ref;
       s.title = st; s.assignees = row.querySelector('.s-who').value.trim(); s.due = row.querySelector('.s-due').value; s.status = row.querySelector('.s-st').value; s.notes = row.querySelector('.s-notes').value.trim();
       used[s.id] = 1; subs.push(s);
     });
@@ -589,7 +642,7 @@ html.lt-pixel .logo { background: var(--accent); }
       split(t.assignees).forEach(function (n) { ppl[n] = 1; });
       subs.forEach(function (s) { split(s.assignees).forEach(function (n) { ppl[n] = 1; }); });
       return { code: t.code, group: groupName(t.group), title: t.title, assignees: t.assignees, due: t.due, status: t.status, statusNow: statusOf(t), notes: t.notes,
-        subs: subs.map(function (s) { return { code: s.code, title: s.title, assignees: s.assignees, due: s.due || t.due, status: s.status, notes: s.notes }; }) };
+        subs: subs.map(function (s) { return { code: s.code, title: s.title, assignees: s.assignees, due: s.due || t.due, status: s.status, notes: s.notes, info: infoText(s) }; }) };
     });
     return { tasks: out, label: label, people: Object.keys(ppl) };
   }
@@ -864,6 +917,41 @@ html.lt-pixel .logo { background: var(--accent); }
     return { X: X && X.rows ? X : null, lists: out.filter(function (l) { return l.kind !== 'entries' || l.entries.length; }) };
   }
   function baseNum(n) { var p = String(n || '').toUpperCase().replace(/\s+/g, '').replace(/-+$/, '').split('-'); if (p.length > 5 && /^([A-Z]\d{1,3}|P\d{2}|\d{2,3})$/.test(p[p.length - 1])) p.pop(); return p.join('-'); }
+  /* ----- live link to the MIDP Checker: each checklist item that is a drawing shows Tower · Typology · Model ----- */
+  var MX = null;
+  function midpIx() {
+    if (MX) return MX.X ? MX : null;
+    MX = { X: null, by: {} };
+    var X = readJSON('tidp-checker:index', null);
+    if (X && X.rows) { MX.X = X; X.rows.forEach(function (r) { var k = baseNum(r[1]); if (k && !MX.by[k]) MX.by[k] = r; if (r[17]) { var o = baseNum(r[17]); if (o && !MX.by[o]) MX.by[o] = r; } }); }
+    return MX.X ? MX : null;
+  }
+  var DREF = /^\s*([A-Z0-9]{2,}(?:-[A-Z0-9]+){4,})/i;
+  function refFromTitle(t) { var m = DREF.exec(t || ''); return m ? baseNum(m[1]) : ''; }
+  function refOf(sub) { return refFromTitle(sub.title) || sub.ref || ''; }
+  function shortTyp(n) {
+    var u = String(n || '').toUpperCase(), sv = /^SV\b/.test(u) ? 'SV ' : '', m = /(\d)\s*BR\b.*?TYPE\s*([A-Z])\s*(\d?)/.exec(u);
+    if (m) return sv + m[1] + 'BR-' + m[2] + m[3];
+    m = /^(.*?)\s*-\s*TYPE\s*([A-Z]\s*\d?)/.exec(u); if (m) return (m[1].replace(/^HT\s*-\s*/, 'HT ') + ' ' + m[2].replace(/\s/g, '')).trim();
+    return u.replace(/\s*\([^)]*\)\s*$/, '');
+  }
+  function infoOf(sub) {
+    var k = refOf(sub); if (!k) return null;
+    var X = midpIx(); if (!X) return { k: k, noix: true };
+    var r = X.by[k]; if (!r) return { k: k, missing: true };
+    return { k: k, tower: r[18] || r[4] || '', typ: r[7] || '', typS: shortTyp(r[7]), model: r[8] || '', modelName: r[9] || '', modelSure: r[19] !== 0, rev: r[3] || '', last: r[10] || '', due: r[13] || '', sends: +r[16] || 0 };
+  }
+  function infoText(sub) { var i = infoOf(sub); if (!i) return ''; if (i.missing) return 'Not in the MIDP'; if (i.noix) return ''; return [i.tower, i.typ, i.model].filter(Boolean).join(' · '); }
+  function chipsHtml(sub) {
+    var i = infoOf(sub); if (!i || i.noix) return '';
+    if (i.missing) return '<span class="mi"><span class="mc bad" title="This drawing number is not in the latest MIDP">not in MIDP</span></span>';
+    return '<span class="mi">' + (i.tower ? '<span class="mc tw" title="Tower">' + esc(i.tower) + '</span>' : '<span class="mc bad" title="No tower in the MIDP Checker">tower?</span>') +
+      (i.typ ? '<span class="mc ty" title="' + esc(i.typ) + '">' + esc(i.typS) + '</span>' : '') +
+      (i.model ? '<span class="mc md' + (i.modelSure ? '' : ' sug') + '" title="' + esc((i.modelName || '') + ' ' + i.model + (i.modelSure ? '' : ' (suggested)')) + '">◫ ' + esc(String(i.model).split('-').pop()) + '</span>' : '') +
+      (i.rev ? '<span class="mc rv" title="Revision in the MIDP">rev ' + esc(i.rev) + '</span>' : '') +
+      (i.due === 'overdue' ? '<span class="mc bad" title="Late in the MIDP">late</span>' : i.sends ? '<span class="mc ok" title="' + esc(i.last) + '">sent</span>' : '') + '</span>';
+  }
+
   function midpRows(list, X) {
     if (list.kind === 'entries') {      // a drawing list: its own numbers, the MIDP title when the number is in the MIDP
       var by = {}; ((X && X.rows) || []).forEach(function (r) { by[baseNum(r[1])] = r; });
@@ -890,6 +978,21 @@ html.lt-pixel .logo { background: var(--accent); }
     });
     return out;
   }
+  function shareNames(gid, who) {
+    var g = D.groups.filter(function (x) { return x.id === gid; })[0], m = g && g.members && g.members.length ? g.members : [];
+    return m.length ? m.slice() : split(who);
+  }
+  // blocks in the order given: sorted by tower · typology first, so each person gets whole unit types
+  function shareOut(items, ppl) {
+    // whole tower · typology groups to one person, biggest groups first, each to whoever has the fewest so far
+    var groups = {}, order = [];
+    items.forEach(function (s, i) { var f = infoOf(s) || {}, k = f.typ ? (f.tower || '') + '|' + f.typ : '~' + i; if (!groups[k]) { groups[k] = []; order.push(k); } groups[k].push(s); });
+    var load = ppl.map(function () { return 0; });
+    order.slice().sort(function (a, b) { return groups[b].length - groups[a].length || order.indexOf(a) - order.indexOf(b); }).forEach(function (k) {
+      var j = load.indexOf(Math.min.apply(null, load)); groups[k].forEach(function (s) { s.assignees = ppl[j]; }); load[j] += groups[k].length;
+    });
+    return items;
+  }
   function midpTitle(r) { return String(r[1] || r[0]).replace(/-+$/, '') + ' — ' + r[2]; }
 
   function genModal() {
@@ -911,13 +1014,14 @@ html.lt-pixel .logo { background: var(--accent); }
             var opts = md.lists.map(function (l, i) { return l.grp !== g ? '' : '<option value="' + i + '">' + (l.kind === 'search' ? '⚡ ' : l.kind === 'entries' ? (g === 'Submissions' ? '📅 ' : '📦 ') : '📌 ') + esc(l.name) + (l.kind === 'entries' ? ' (' + l.entries.length + ')' : '') + '</option>'; }).join('');
             return opts ? '<optgroup label="' + g + '">' + opts + '</optgroup>' : ''; }).join('') + '</select>'
               : '<span class="small">No lists yet — in the MIDP Checker make a list (Lookup › Lists), add a list to a Drawing set, or load a submission. Then it shows here.</span>') + '</label>' +
+      '<label class="full gshare"><span><input type="checkbox" id="gShare"> Share the items out evenly between the group members (or the names in Assignee) — the same tower / typology stays with one person</span></label>' +
       '</div><p class="small" id="gInfo"></p>' +
       '<div class="foot"><span class="small">Items without their own assignee / date get the task\'s.</span><div style="display:flex;gap:8px"><button class="btn" data-close>Cancel</button>' +
       '<button class="btn" data-gencreate="1">Create</button><button class="btn primary" data-gencreate="2">Create &amp; make Excel</button></div></div>');
     var src = 'list';
     var items = function () {
       if (src === 'rows') { var n = Math.max(1, Math.min(200, +$('gN').value || 1)), pre = $('gPrefix').value.trim() || 'Item'; return Array.from({ length: n }, function (_, i) { return { title: pre + ' ' + (i + 1) }; }); }
-      if (src === 'midp') { var sel = $('gMidp'); if (!sel || sel.value === '') return []; return midpRows(md.lists[+sel.value], md.X).map(function (r) { return { title: midpTitle(r) }; }); }
+      if (src === 'midp') { var sel = $('gMidp'); if (!sel || sel.value === '') return []; return midpRows(md.lists[+sel.value], md.X).map(function (r) { return { title: midpTitle(r), ref: baseNum(r[1]) }; }); }
       return pasteGet('gList');
     };
     var upd = function () { var n = items().length; $('gInfo').textContent = n ? n + ' item' + (n > 1 ? 's' : '') + ' will be added under the task.' : 'No items yet — the task can still be created on its own.'; };
@@ -934,7 +1038,12 @@ html.lt-pixel .logo { background: var(--accent); }
     if (gsel === '_new') { var gn = prompt('New group name (e.g. "Outsource - Studio X")'); if (!gn || !gn.trim()) return; var g = { id: uid('g'), name: gn.trim(), members: [] }; D.groups.push(g); gsel = g.id; }
     var who = $('gWho').value.trim(), due = $('gDue').value, list = $('modalCard').__genItems();
     var t = { id: uid('t'), code: nextCode(), title: title, group: gsel, assignees: who, due: due, status: 'Not started', notes: $('gNotes').value.trim(), subs: [], history: [], created: iso(), updated: iso() };
-    list.forEach(function (x, i) { t.subs.push({ id: uid('s'), code: t.code + '.' + (i + 1), title: x.title, assignees: x.assignees || who, due: x.due || due, status: 'Not started', notes: '' }); teamAdd(split(x.assignees)); });
+    list.forEach(function (x, i) { t.subs.push({ id: uid('s'), code: t.code + '.' + (i + 1), title: x.title, ref: x.ref || refFromTitle(x.title), assignees: x.assignees || who, due: x.due || due, status: 'Not started', notes: '' }); teamAdd(split(x.assignees)); });
+    // share the items out evenly (in blocks, so the same tower / typology stays with one person)
+    if ($('gShare') && $('gShare').checked) {
+      var ppl2 = shareNames(gsel, who);
+      if (ppl2.length > 1) { shareOut(t.subs, ppl2); who = ppl2.join(', '); t.assignees = who; t.history.push({ at: iso(), text: 'Shared out to ' + ppl2.join(', ') }); }
+    }
     t.history.push({ at: iso(), text: 'Created with the Checklist generator (' + list.length + ' item' + (list.length === 1 ? '' : 's') + ')' });
     D.tasks.push(t); teamAdd(split(who)); save(); closeModal(); render();
     toast('Task ' + t.code + ' added with ' + list.length + ' item' + (list.length === 1 ? '' : 's'));
@@ -1043,7 +1152,26 @@ html.lt-pixel .logo { background: var(--accent); }
       else if (act === 'epasteadd') {
         var its = pasteGet('ePasteBox'); if (!its.length) { toast('Paste a list first'); return; }
         its.forEach(function (x) { var w = document.createElement('div'); w.innerHTML = $('modalCard').__subRow({ id: '', title: x.title, assignees: x.assignees || $('eWho').value, due: x.due || $('eDue').value, status: 'Not started', notes: '' }); $('eSubs').appendChild(w.firstChild); });
-        pasteSet('ePasteBox', ''); $('ePaste').hidden = true; toast(its.length + ' subtask' + (its.length === 1 ? '' : 's') + ' added — press Save');
+        pasteSet('ePasteBox', ''); $('ePaste').hidden = true; subCount(); toast(its.length + ' item' + (its.length === 1 ? '' : 's') + ' added — press Save');
+      }
+      else if (act === 'eassign') {
+        var to = $('eAssignTo').value.trim(), pk = picked(); if (!to) { toast('Type or pick a person first'); $('eAssignTo').focus(); return; }
+        if (!pk.length) { toast('Tick the items first (or “All”)'); return; }
+        pk.forEach(function (r) { r.querySelector('.s-who').value = to; }); toast(pk.length + ' item' + (pk.length === 1 ? '' : 's') + ' → ' + to + ' — press Save');
+      }
+      else if (act === 'eshare') {
+        var rowsS = picked(); if (!rowsS.length) rowsS = shownRows();
+        var ppl3 = shareNames($('eGroup').value, $('eWho').value);
+        if (ppl3.length < 2) { toast('Add the group’s members (Groups) or 2+ names in “Assigned to” first'); return; }
+        var objs = rowsS.map(function (r) { return { title: r.querySelector('.s-title').value, ref: r.getAttribute('data-ref'), row: r }; });
+        shareOut(objs, ppl3); objs.forEach(function (o) { o.row.querySelector('.s-who').value = o.assignees; });
+        var cnt = {}; objs.forEach(function (o) { cnt[o.assignees] = (cnt[o.assignees] || 0) + 1; });
+        toast('Shared: ' + Object.keys(cnt).map(function (k) { return k + ' ' + cnt[k]; }).join(' · ') + ' — press Save');
+      }
+      else if (act === 'esort') {
+        var box = $('eSubs'), rs = Array.prototype.slice.call(box.querySelectorAll('.subrow'));
+        rs.sort(function (a, b) { var x = (a.getAttribute('data-tower') || '~') + '|' + (a.getAttribute('data-typ') || '~') + '|' + a.querySelector('.s-title').value, y = (b.getAttribute('data-tower') || '~') + '|' + (b.getAttribute('data-typ') || '~') + '|' + b.querySelector('.s-title').value; return x < y ? -1 : x > y ? 1 : 0; });
+        rs.forEach(function (r) { box.appendChild(r); }); toast('Sorted by tower · typology — press Save to keep the order');
       }
       else if (act === 'snote') { var ta = el.closest('.subrow').querySelector('.s-notes'); ta.hidden = !ta.hidden; if (!ta.hidden) ta.focus(); }
       else if (act === 'ebulk') {
@@ -1140,7 +1268,10 @@ html.lt-pixel .logo { background: var(--accent); }
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
   // another tab / a skill changed the data → show it
-  window.addEventListener('storage', function (e) { if (e.key === KEY || e.key === 'lt_projects_v1') { D = load(); render(); } });
+  window.addEventListener('storage', function (e) {
+    if (e.key === KEY || e.key === 'lt_projects_v1') { D = load(); MX = null; render(); }
+    else if (e.key === 'tidp-checker:index') { MX = null; if (!$('modal').classList.contains('show')) render(); }
+  });
   // theme button
   // theme: set in the tracker's Settings → Theme (this page follows it)
   window.__delegate = { data: function () { return D; }, render: render, setStatus: setStatus };   // for tests

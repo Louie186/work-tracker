@@ -100,7 +100,7 @@
       var title = l.n ? l.n.title : (l.base === l.t ? 'Status of this task' : l.base.title), lt = late(l);
       return '<div class="it' + (st === 'Completed' ? ' done' : '') + (l.n ? ' new' : '') + '">' +
         '<div class="sts">' + ST.map(function (s, i) { return '<button class="s' + i + (s[0] === st ? ' on' : '') + '" data-st="' + key + '" data-v="' + s[0] + '">' + s[1] + '</button>'; }).join('') + '</div>' +
-        '<div class="nm"><span>' + esc(title) + '</span>' + (l.n ? '<span class="tag">NEW</span>' : '') +
+        '<div class="nm"><span>' + esc(title) + '</span>' + (l.n ? '<span class="tag">NEW</span>' : '') + (!l.n && l.base && l.base.info ? '<small class="inf">' + esc(l.base.info) + '</small>' : '') +
         '<small class="' + (lt ? 'late' : '') + '">' + (l.due ? (lt ? 'overdue ' : '') + esc(fmt(l.due)) : '') + '</small>' +
         (notes && !OPEN[key] ? '<em>✎ ' + esc(notes) + '</em>' : '') + '</div>' +
         '<div class="tools"><button class="ib' + (notes ? ' has' : '') + '" data-noteopen="' + key + '" title="' + (notes ? 'Edit note' : 'Add a note') + '">✎</button>' +
@@ -285,7 +285,7 @@
     var wb = new ExcelJS.Workbook();
     wb.creator = "Lew's Tracker"; wb.views = [{ x: 0, y: 0, width: 28800, height: 15000, firstSheet: 0, activeTab: 0 }];
     var ws = wb.addWorksheet('Tasks', { views: [{ state: 'frozen', ySplit: 3, xSplit: 0 }] });
-    var cols = [['ID', 9], ['Task', 40], ['Item', 40], ['Assigned to', 18], ['Due date', 13], ['Status', 14], ['Notes', 44]];
+    var cols = [['ID', 9], ['Task', 40], ['Item', 40], ['Assigned to', 18], ['Due date', 13], ['Status', 14], ['Notes', 44], ['Tower · Typology · Model', 42]];
     var thin = { style: 'thin', color: { argb: 'FFBFC5D2' } }, box = { top: thin, left: thin, bottom: thin, right: thin };
     var clean = function (v) { return String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, ' ').slice(0, 32000); };
     var date = function (s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ''); return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : null; };
@@ -299,7 +299,7 @@
     };
     (plan.tasks || []).forEach(function (t) {
       put([clean(t.code), clean(t.title), '', clean(t.assignees), date(t.due), t.subs.length ? '' : clean(t.status), clean(t.notes)], true);
-      t.subs.forEach(function (s) { put([clean(s.code), '', clean(s.title), clean(s.assignees), date(s.due || t.due), clean(s.status), clean(s.notes)], false); });
+      t.subs.forEach(function (s) { put([clean(s.code), '', clean(s.title), clean(s.assignees), date(s.due || t.due), clean(s.status), clean(s.notes), clean(s.info)], false); });
     });
     return wb;
   }

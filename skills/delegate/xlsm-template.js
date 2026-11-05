@@ -40,20 +40,21 @@
     xml = setCell(xml, 'A1', str('A1', styleOf(xml, 'A1', '0'), 'CHECKLIST GENERATOR   |   ' + plan.project));
     xml = setCell(xml, 'C8', str('C8', styleOf(xml, 'C8', '0'), plan.title));
     // header: add the hidden "Website ID" column
-    xml = xml.replace(/(<row r="9"[^>]*?)spans="[^"]*"/, '$1spans="1:10"').replace(/(<row r="9"[\s\S]*?)<\/row>/, function (m, a) { return a + str('J9', S.head, 'Website ID') + '</row>'; });
+    xml = xml.replace(/(<row r="9"[^>]*?)spans="[^"]*"/, '$1spans="1:11"').replace(/(<row r="9"[\s\S]*?)<\/row>/, function (m, a) { return a + str('J9', S.head, 'Website ID') + str('K9', S.head, 'Tower · Typology · Model') + '</row>'; });
     if (!/<col min="10"/.test(xml)) xml = xml.replace('</cols>', '<col min="10" max="10" width="12" hidden="1" customWidth="1"/></cols>');
+    if (!/<col min="11"/.test(xml)) xml = xml.replace('</cols>', '<col min="11" max="11" width="40" customWidth="1"/></cols>');   // drawing info from the MIDP Checker
     var rows = [], dv = [], r = 10, alt = 0;
     (plan.tasks || []).forEach(function (t) {
       var subs = t.subs || [], first = r + 1, last = r + subs.length;
-      rows.push('<row r="' + r + '" spans="1:10">' + str('A' + r, S.task, t.code) + str('B' + r, S.task, t.title) + str('C' + r, S.task, t.group) + str('D' + r, S.task, t.assignees) +
+      rows.push('<row r="' + r + '" spans="1:11">' + str('A' + r, S.task, t.code) + str('B' + r, S.task, t.title) + str('C' + r, S.task, t.group) + str('D' + r, S.task, t.assignees) +
         str('E' + r, S.task, t.priority || 'Medium') + str('F' + r, S.task, t.due || '') + str('G' + r, S.task, subs.length ? taskWord(t.statusNow || t.status) : taskWord(t.status)) +
         (subs.length ? '<c r="H' + r + '" s="' + S.pct + '"><f>COUNTIF(G' + first + ':G' + last + ',"Done")/' + subs.length + '</f></c>' : '<c r="H' + r + '" s="' + S.pct + '"/>') +
         str('I' + r, S.task, t.notes) + str('J' + r, '0', t.code) + '</row>');
       r++;
       subs.forEach(function (s) {
         var a = alt++ % 2 ? S.subA2 : S.subA, b = alt % 2 ? S.subB : S.subB2;
-        rows.push('<row r="' + r + '" spans="1:10" outlineLevel="1">' + str('A' + r, a, '') + str('B' + r, b, s.title) + str('C' + r, a, '') + str('D' + r, a, s.assignees) + str('E' + r, a, '') +
-          str('F' + r, a, s.due || '') + str('G' + r, a, itemWord(s.status)) + str('H' + r, a, '') + str('I' + r, a, s.notes) + str('J' + r, '0', s.code) + '</row>');
+        rows.push('<row r="' + r + '" spans="1:11" outlineLevel="1">' + str('A' + r, a, '') + str('B' + r, b, s.title) + str('C' + r, a, '') + str('D' + r, a, s.assignees) + str('E' + r, a, '') +
+          str('F' + r, a, s.due || '') + str('G' + r, a, itemWord(s.status)) + str('H' + r, a, '') + str('I' + r, a, s.notes) + str('J' + r, '0', s.code) + (s.info ? str('K' + r, a, s.info) : '') + '</row>');
         dv.push('G' + r); r++;
       });
     });

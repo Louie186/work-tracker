@@ -43,7 +43,7 @@ window.MIDP_FOLDER = function (A) {
   var sel = new Set(), CACHE = null, BUSY = false, PENDING = null;
   var canPick = typeof window.showDirectoryPicker === 'function';
 
-  function save() { A.writeJSON(KEY, BOX); CACHE = null; try { if (window.parent !== window && window.parent.__trackerEmbedSaved) window.parent.__trackerEmbedSaved('midp'); } catch (e) {} }
+  function save() { if (A.writeJSON(KEY, BOX) === false) A.toast('⚠ Could not save the Drawing sets — this browser’s storage is full. Export a backup (Files › Export), then remove old sets or lists.'); CACHE = null; try { if (window.parent !== window && window.parent.__trackerEmbedSaved) window.parent.__trackerEmbedSaved('midp'); } catch (e) {} }
   function U(s) { return String(s == null ? '' : s).toUpperCase().trim(); }
   function pid() { try { return window.parent.LTProjects.active().id; } catch (e) { return 'default'; } }
 

@@ -173,6 +173,7 @@ textarea { font: inherit; }
 .subrow.sub-c .s-no { display: flex; align-items: center; gap: 2px; justify-content: flex-end; cursor: pointer; } .subrow.sub-c .s-no input { margin: 0; width: 13px; height: 13px; }
 .sub-bulk { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; padding: 5px 6px; margin: 2px 0 6px; border: 1px dashed var(--line, #d9d4c7); border-radius: 8px; }
 .sub-bulk[hidden] { display: none; } .sub-bulk select, .sub-bulk input { padding: 3px 6px; font-size: 12px; width: auto; max-width: 180px; } .sub-bulk .grow { flex: 1; } .sub-bulk select[hidden] { display: none; }
+.gdiag { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; } .gdiag .btn { margin-left: 4px; }
 .gshare span { display: flex; gap: 6px; align-items: center; color: var(--ink); } .gshare input { width: auto; }
 /* compact task editor */
 .btn.xs { padding: 2px 7px; font-size: 11.5px; line-height: 1.3; } .btn.xs.on { border-color: var(--accent); }
@@ -914,7 +915,14 @@ html.lt-pixel .logo { background: var(--accent); }
     subs.slice().sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); }).forEach(function (sb) {
       out.push({ grp: 'Submissions', kind: 'entries', name: [sb.date, sb.type || sb.ref, sb.file].filter(Boolean).join(' · '), entries: sb.items || [] });
     });
-    return { X: X && X.rows ? X : null, lists: out.filter(function (l) { return l.kind !== 'entries' || l.entries.length; }) };
+    var lists = out.filter(function (l) { return l.kind !== 'entries' || l.entries.length; });
+    var pj = readJSON('lt_projects_v1', null), pName = '';
+    try { pName = pj && pj.list ? (pj.list.filter(function (x) { return x.id === pj.active; })[0] || {}).name || '' : ''; } catch (e) {}
+    var used = 0; try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); used += k.length + (localStorage.getItem(k) || '').length; } } catch (e) {}
+    var n = function (g) { return lists.filter(function (l) { return l.grp === g; }).length; };
+    var diag = 'Found in this browser (' + location.host + (pName ? ' · project ' + pName : '') + '): ' + n('Drawing sets') + ' Drawing set lists · ' + n('Submissions') + ' submissions · ' + n('Lookup lists') + ' Lookup lists · MIDP ' +
+      (X && X.rows ? 'loaded' + (X.file ? ' (' + X.file + ')' : '') : 'not loaded') + ' · storage ' + (used * 2 / 1048576).toFixed(1) + ' MB of ~5 MB';
+    return { X: X && X.rows ? X : null, lists: lists, diag: diag, full: used * 2 > 4.6 * 1048576 };
   }
   function baseNum(n) { var p = String(n || '').toUpperCase().replace(/\s+/g, '').replace(/-+$/, '').split('-'); if (p.length > 5 && /^([A-Z]\d{1,3}|P\d{2}|\d{2,3})$/.test(p[p.length - 1])) p.pop(); return p.join('-'); }
   /* ----- live link to the MIDP Checker: each checklist item that is a drawing shows Tower · Typology · Model ----- */
@@ -1013,7 +1021,8 @@ html.lt-pixel .logo { background: var(--accent); }
         (md.lists.length ? '<select id="gMidp"><option value="">Pick a list…</option>' + ['Drawing sets', 'Lookup lists', 'Submissions'].map(function (g) {
             var opts = md.lists.map(function (l, i) { return l.grp !== g ? '' : '<option value="' + i + '">' + (l.kind === 'search' ? '⚡ ' : l.kind === 'entries' ? (g === 'Submissions' ? '📅 ' : '📦 ') : '📌 ') + esc(l.name) + (l.kind === 'entries' ? ' (' + l.entries.length + ')' : '') + '</option>'; }).join('');
             return opts ? '<optgroup label="' + g + '">' + opts + '</optgroup>' : ''; }).join('') + '</select>'
-              : '<span class="small">No lists yet — in the MIDP Checker make a list (Lookup › Lists), add a list to a Drawing set, or load a submission. Then it shows here.</span>') + '</label>' +
+              : '<span class="small">No lists found. Add a list to a Drawing set, load a submission (Files › Submission → <b>Add submission</b>), or make a Lookup list — in the MIDP Checker of <b>this same site and project</b> (the offline file and the preview link keep their own data). Then press ↻.</span>') +
+        '<span class="small gdiag">' + esc(md.diag) + (md.full ? ' — <b style="color:#c62828">storage almost full: export a backup and clear old data</b>' : '') + ' <button class="btn xs" type="button" data-act="genre" title="Read the MIDP Checker again">↻ Refresh</button></span></label>' +
       '<label class="full gshare"><span><input type="checkbox" id="gShare"> Share the items out evenly between the group members (or the names in Assignee) — the same tower / typology stays with one person</span></label>' +
       '</div><p class="small" id="gInfo"></p>' +
       '<div class="foot"><span class="small">Items without their own assignee / date get the task\'s.</span><div style="display:flex;gap:8px"><button class="btn" data-close>Cancel</button>' +
@@ -1172,6 +1181,11 @@ html.lt-pixel .logo { background: var(--accent); }
         var box = $('eSubs'), rs = Array.prototype.slice.call(box.querySelectorAll('.subrow'));
         rs.sort(function (a, b) { var x = (a.getAttribute('data-tower') || '~') + '|' + (a.getAttribute('data-typ') || '~') + '|' + a.querySelector('.s-title').value, y = (b.getAttribute('data-tower') || '~') + '|' + (b.getAttribute('data-typ') || '~') + '|' + b.querySelector('.s-title').value; return x < y ? -1 : x > y ? 1 : 0; });
         rs.forEach(function (r) { box.appendChild(r); }); toast('Sorted by tower · typology — press Save to keep the order');
+      }
+      else if (act === 'genre') {      // read the MIDP Checker lists again, keep what was typed
+        var keep = { t: $('gTitle').value, g: $('gGroup').value, w: $('gWho').value, d: $('gDue').value, n: $('gNotes').value };
+        genModal(); $('gTitle').value = keep.t; $('gGroup').value = keep.g; $('gWho').value = keep.w; $('gDue').value = keep.d; $('gNotes').value = keep.n; $('modalCard').__genSrc('midp');
+        toast('Read the MIDP Checker again');
       }
       else if (act === 'snote') { var ta = el.closest('.subrow').querySelector('.s-notes'); ta.hidden = !ta.hidden; if (!ta.hidden) ta.focus(); }
       else if (act === 'ebulk') {

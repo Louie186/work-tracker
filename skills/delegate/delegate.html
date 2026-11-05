@@ -163,6 +163,23 @@ textarea { font: inherit; }
 .form .full { grid-column: 1 / -1; }
 @media (max-width: 600px) { .form { grid-template-columns: 1fr; } }
 .subs { margin-top: 12px; }
+/* compact task editor */
+.btn.xs { padding: 2px 7px; font-size: 11.5px; line-height: 1.3; } .btn.xs.on { border-color: var(--accent); }
+.form.ecompact { grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 8px; } .form.ecompact > label { grid-column: span 3; } .form.ecompact > label:first-child { grid-column: span 2; } .form.ecompact > label.span3 { grid-column: span 10; } .form.ecompact > label.full { grid-column: 1 / -1; }
+.form.ecompact label { font-size: 11.5px; gap: 3px; min-width: 0; } .form.ecompact input, .form.ecompact select, .form.ecompact textarea { padding: 6px 8px; font-size: 13px; }
+.form.ecompact textarea { min-height: 44px; }
+.subs-h { display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; } .subs-b { display: flex; gap: 5px; flex-wrap: wrap; }
+.bulk { margin: 6px 0; } .bulk textarea { width: 100%; font: 12.5px/1.45 ui-monospace, monospace; } .bulk-r { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; align-items: center; } .bulk-r input { flex: 1; min-width: 120px; padding: 4px 8px; font-size: 12px; } .bulk-r .grow { flex: 1; }
+#eSubs { counter-reset: sub; }
+.sub-hd, .subrow.sub-c { display: grid; grid-template-columns: 26px minmax(0, 1fr) 130px 128px 112px 30px 26px; gap: 4px; align-items: center; }
+.sub-hd { font-size: 11px; color: var(--muted); padding: 0 0 2px; }
+.subrow.sub-c { margin-bottom: 3px; }
+.subrow.sub-c input, .subrow.sub-c select { padding: 4px 6px; font-size: 12.5px; min-width: 0; }
+.subrow.sub-c .s-no { font-size: 11px; color: var(--muted); text-align: right; } .subrow.sub-c .s-no::before { counter-increment: sub; content: counter(sub); }
+.subrow.sub-c textarea { grid-column: 2 / -1; min-height: 30px; font-size: 12px; padding: 4px 6px; }
+.subrow.sub-c textarea[hidden] { display: none; }
+#modalCard .foot .btn { padding: 5px 12px; font-size: 12.5px; }
+@media (max-width: 680px) { .form.ecompact { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .form.ecompact input, .form.ecompact select, .form.ecompact textarea { width: 100%; min-width: 0; box-sizing: border-box; } .form.ecompact > label, .form.ecompact > label:first-child { grid-column: span 1; } .form.ecompact > label.span3, .form.ecompact > label.full { grid-column: 1 / -1; } .sub-hd { display: none; } .subrow.sub-c { grid-template-columns: 22px 1fr 1fr 26px 26px; } .subrow.sub-c .s-title { grid-column: 2 / -3; } .subrow.sub-c .s-who { grid-column: 2 / 3; } .subrow.sub-c .s-due { grid-column: 3 / 4; } .subrow.sub-c .s-st { grid-column: 2 / 4; } }
 .subrow { display: grid; grid-template-columns: 1fr 140px 130px 120px 30px; gap: 6px; margin-bottom: 6px; align-items: start; }
 .subrow textarea { min-height: 34px; grid-column: 1 / -2; }
 @media (max-width: 600px) { .subrow { grid-template-columns: 1fr 1fr; } .subrow textarea { grid-column: 1 / -1; } }
@@ -413,36 +430,50 @@ html.lt-pixel .logo { background: var(--accent); }
     var t = id ? findTask(id) : Object.assign({ id: '', code: '(new)', title: '', group: UI.group && UI.group !== '_none' ? UI.group : '', assignees: '', due: '', status: 'Not started', notes: '', subs: [], history: [] }, preset || {});
     var dl = '<datalist id="ppl">' + people().map(function (n) { return '<option value="' + esc(n) + '">'; }).join('') + '</datalist>';
     var subRow = function (s) {
-      return '<div class="subrow" data-sid="' + esc(s.id || '') + '"><input class="s-title" placeholder="Subtask" value="' + esc(s.title) + '">' +
+      return '<div class="subrow sub-c" data-sid="' + esc(s.id || '') + '"><span class="s-no" title="' + esc(s.code || 'new') + '"></span><input class="s-title" placeholder="Checklist item" value="' + esc(s.title) + '">' +
         '<input class="s-who" list="ppl" placeholder="Assigned to" value="' + esc(s.assignees) + '"><input class="s-due" type="date" value="' + esc(s.due) + '">' +
         '<select class="s-st">' + ST.map(function (x) { return '<option' + (x === s.status ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select>' +
-        '<button class="btn sm danger" data-delsub title="Remove subtask">×</button><textarea class="s-notes" placeholder="Notes">' + esc(s.notes) + '</textarea></div>';
+        '<button class="btn xs' + (s.notes ? ' on' : '') + '" type="button" data-act="snote" title="Notes">📝</button><button class="btn xs danger" type="button" data-delsub title="Remove item">×</button>' +
+        '<textarea class="s-notes" placeholder="Notes"' + (s.notes ? '' : ' hidden') + '>' + esc(s.notes) + '</textarea></div>';
     };
     openModal('<h2><span>' + (id ? esc(t.code) + ' — Edit task' : 'New task') + '</span><button class="icon" data-close>×</button></h2>' + dl +
-      '<div class="form">' +
-      '<label class="full">Task title<input id="eTitle" value="' + esc(t.title) + '" placeholder="e.g. Coordinate Level 16 models"></label>' +
+      '<div class="form ecompact">' +
+      '<label>No.<input id="eCode" value="' + esc(id ? t.code : 'T' + String((D.seq || 0) + 1).padStart(2, '0')) + '" title="Task number — change it if you like (must be unique)"></label>' +
+      '<label class="span3">Task title<input id="eTitle" value="' + esc(t.title) + '" placeholder="e.g. Coordinate Level 16 models"></label>' +
       '<label>Group<select id="eGroup"><option value="">No group</option>' + D.groups.map(function (g) { return '<option value="' + esc(g.id) + '"' + (g.id === t.group ? ' selected' : '') + '>' + esc(g.name) + '</option>'; }).join('') + '<option value="_new">+ New group…</option></select></label>' +
-      '<label>Assigned to <span>(names, comma between)</span><input id="eWho" list="ppl" value="' + esc(t.assignees) + '" placeholder="e.g. Ana, Raj"></label>' +
+      '<label>Assigned to<input id="eWho" list="ppl" value="' + esc(t.assignees) + '" placeholder="Names, comma between"></label>' +
       '<label>Due date<input id="eDue" type="date" value="' + esc(t.due) + '"></label>' +
       '<label>Status<select id="eSt"' + (t.subs.length ? ' disabled title="Comes from its subtasks"' : '') + '>' + ST.map(function (x) { return '<option' + (x === statusOf(t) ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></label>' +
-      '<label class="full">Description / notes<textarea id="eNotes" placeholder="What needs doing, links, model names…">' + esc(t.notes) + '</textarea></label></div>' +
-      '<div class="subs"><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><b>Subtasks</b><span style="display:flex;gap:6px"><button class="btn sm" data-act="epaste">📋 Paste list</button><button class="btn sm" data-addsub>+ Subtask</button></span></div>' +
+      '<label class="full">Description / notes<textarea id="eNotes" rows="2" placeholder="What needs doing, links, model names…">' + esc(t.notes) + '</textarea></label></div>' +
+      '<div class="subs"><div class="subs-h"><b>Checklist <span class="small" id="eSubN">' + (t.subs.length ? '(' + t.subs.length + ')' : '') + '</span></b><span class="subs-b"><button class="btn xs" type="button" data-act="ebulk" title="Edit all names at once, or find & replace">✎ Edit names</button><button class="btn xs" type="button" data-act="epaste">📋 Paste list</button><button class="btn xs" type="button" data-addsub>+ Item</button></span></div>' +
+      '<div id="eBulk" hidden class="pastewrap bulk"><p class="small" style="margin:0 0 4px">One name per line, in order. Change any line, add lines for new items. A blank line removes that item.</p><textarea id="eBulkText" rows="8"></textarea>' +
+        '<div class="bulk-r"><input id="eFind" placeholder="Find (e.g. -T1)"><input id="eRepl" placeholder="Replace with (e.g. -T2)"><button class="btn xs" type="button" data-act="efr">Replace in all names</button><span class="grow"></span><button class="btn xs" type="button" data-act="ebulk">Cancel</button><button class="btn xs primary" type="button" data-act="ebulkok">Apply names</button></div></div>' +
       '<div id="ePaste" hidden class="pastewrap">' + pasteBox('ePasteBox', 'Paste rows from Excel or the MIDP Checker — one item per row') + '<div style="display:flex;justify-content:flex-end;gap:6px;margin-top:6px"><button class="btn sm" data-act="epaste">Cancel</button><button class="btn sm primary" data-act="epasteadd">Add as subtasks</button></div></div>' +
-      '<p class="small" style="margin:4px 0 8px">A task with subtasks is done when all its subtasks are done. Each subtask can have its own person and date.</p>' +
-      '<div id="eSubs">' + t.subs.map(subRow).join('') + '</div></div>' +
+      '<div class="sub-hd"><span>#</span><span>Item</span><span>Assigned to</span><span>Date</span><span>Status</span><span></span></div>' +
+      '<div id="eSubs">' + t.subs.map(subRow).join('') + '</div><p class="small" style="margin:4px 0 0">The task is done when all its items are done. Items without a person / date get the task’s.</p></div>' +
       (id && window.LTTodoLink && LTTodoLink.api() ? '<div class="subs"><b>My To Do</b> <span class="small">a reminder for you, linked to this task</span><div style="margin-top:6px">' + LTTodoLink.html({ f: 'deleg', t: 't', k: t.id, label: t.code + ' ' + t.title, title: 'Follow up ' + t.code + ' ' + t.title + (t.assignees ? ' (' + t.assignees + ')' : ''), due: t.due }) + '</div></div>' : '') +
       (t.history && t.history.length ? '<div class="hist"><b>History</b><br>' + t.history.slice(-12).reverse().map(function (h) { return esc(new Date(h.at).toLocaleString()) + ' — ' + esc(h.text); }).join('<br>') + '</div>' : '') +
-      '<div class="foot"><div>' + (id ? '<button class="btn danger" data-deltask="' + id + '">Delete task</button>' : '') + '</div><div style="display:flex;gap:8px"><button class="btn" data-close>Cancel</button><button class="btn primary" data-savetask="' + (id || '') + '">Save</button></div></div>');
+      '<div class="foot"><div>' + (id ? '<button class="btn sm danger" data-deltask="' + id + '">Delete task</button>' : '') + '</div><div style="display:flex;gap:8px"><button class="btn sm" data-close>Cancel</button><button class="btn sm primary" data-savetask="' + (id || '') + '">Save</button></div></div>');
     $('modalCard').__subRow = subRow;
     setTimeout(function () { $('eTitle').focus(); }, 50);
   }
+  function subCount() { var n = document.querySelectorAll('#eSubs .subrow').length, el = $('eSubN'); if (el) el.textContent = n ? '(' + n + ')' : ''; }
   window.DELEG_OPEN = function (id) { if (findTask(id)) editor(id); };   // Lew's Tracker: open a task from a To Do link
   function saveEditor(id) {
     var title = $('eTitle').value.trim();
     if (!title) { toast('Give the task a title'); $('eTitle').focus(); return; }
     var gsel = $('eGroup').value;
     if (gsel === '_new') { var gn = prompt('New group name (e.g. "Outsource - Studio X")'); if (!gn || !gn.trim()) return; var g = { id: uid('g'), name: gn.trim(), members: [] }; D.groups.push(g); gsel = g.id; }
-    var t = id ? findTask(id) : { id: uid('t'), code: nextCode(), subs: [], history: [], created: iso(), status: 'Not started' };
+    var want = ($('eCode') ? $('eCode').value : '').trim().toUpperCase().replace(/\s+/g, '');
+    if (want && D.tasks.some(function (x) { return x.id !== id && String(x.code).toUpperCase() === want; })) { toast('Number ' + want + ' is already used by another task'); $('eCode').focus(); return; }
+    var t = id ? findTask(id) : { id: uid('t'), code: '', subs: [], history: [], created: iso(), status: 'Not started' };
+    var oldCode = t.code;
+    if (!id) t.code = want || nextCode();
+    else if (want && want !== oldCode) {
+      t.code = want; t.subs.forEach(function (s) { if (String(s.code || '').indexOf(oldCode + '.') === 0) s.code = want + s.code.slice(oldCode.length); });
+      t.history.push({ at: iso(), text: 'Number: ' + oldCode + ' → ' + want });
+    }
+    var mn = /^T(\d+)$/.exec(t.code); if (mn && +mn[1] > (D.seq || 0)) D.seq = +mn[1];
     var before = id ? JSON.stringify([t.title, t.group, t.assignees, t.due, t.status, t.notes, t.subs]) : '';
     t.title = title; t.group = gsel; t.assignees = $('eWho').value.trim(); t.due = $('eDue').value; t.notes = $('eNotes').value.trim();
     var used = {}, maxN = 0;
@@ -461,7 +492,7 @@ html.lt-pixel .logo { background: var(--accent); }
     if (!id) { t.history.push({ at: iso(), text: 'Created' }); D.tasks.push(t); }
     else if (before !== JSON.stringify([t.title, t.group, t.assignees, t.due, t.status, t.notes, t.subs])) t.history.push({ at: iso(), text: 'Edited' });
     teamAdd(split(t.assignees).concat.apply(split(t.assignees), subs.map(function (s) { return split(s.assignees); })));
-    save(); closeModal(); render(); toast(id ? 'Saved' : 'Task ' + t.code + ' added');
+    save(); closeModal(); render(); toast(id ? '✓ ' + t.code + ' saved' : '✓ Task ' + t.code + ' added — click it any time to add or edit its checklist');
   }
   function setStatus(tid, sid, status) {
     var t = findTask(tid); if (!t) return;
@@ -1014,6 +1045,28 @@ html.lt-pixel .logo { background: var(--accent); }
         its.forEach(function (x) { var w = document.createElement('div'); w.innerHTML = $('modalCard').__subRow({ id: '', title: x.title, assignees: x.assignees || $('eWho').value, due: x.due || $('eDue').value, status: 'Not started', notes: '' }); $('eSubs').appendChild(w.firstChild); });
         pasteSet('ePasteBox', ''); $('ePaste').hidden = true; toast(its.length + ' subtask' + (its.length === 1 ? '' : 's') + ' added — press Save');
       }
+      else if (act === 'snote') { var ta = el.closest('.subrow').querySelector('.s-notes'); ta.hidden = !ta.hidden; if (!ta.hidden) ta.focus(); }
+      else if (act === 'ebulk') {
+        var bw = $('eBulk'); bw.hidden = !bw.hidden;
+        if (!bw.hidden) { $('eBulkText').value = Array.prototype.map.call(document.querySelectorAll('#eSubs .s-title'), function (x) { return x.value; }).join('\n'); $('eBulkText').focus(); }
+      }
+      else if (act === 'ebulkok') {
+        var lines = $('eBulkText').value.replace(/\s+$/, '').split('\n'), rows = Array.prototype.slice.call(document.querySelectorAll('#eSubs .subrow')), ch = 0, add = 0, del = 0;
+        if (lines.length === 1 && !lines[0].trim()) lines = [];
+        lines.forEach(function (ln, i) {
+          ln = ln.trim();
+          if (rows[i]) { if (!ln) { rows[i].remove(); del++; } else if (rows[i].querySelector('.s-title').value !== ln) { rows[i].querySelector('.s-title').value = ln; ch++; } }
+          else if (ln) { var w2 = document.createElement('div'); w2.innerHTML = $('modalCard').__subRow({ id: '', title: ln, assignees: $('eWho').value, due: $('eDue').value, status: 'Not started', notes: '' }); $('eSubs').appendChild(w2.firstChild); add++; }
+        });
+        rows.slice(lines.length).forEach(function (r) { r.remove(); del++; });
+        $('eBulk').hidden = true; subCount();
+        toast(ch + ' renamed · ' + add + ' added · ' + del + ' removed — press Save');
+      }
+      else if (act === 'efr') {
+        var f = $('eFind').value, r2 = $('eRepl').value, n2 = 0; if (!f) { toast('Type what to find'); return; }
+        var ta2 = $('eBulkText'), before2 = ta2.value; ta2.value = before2.split(f).join(r2); n2 = before2.split(f).length - 1;
+        toast(n2 ? n2 + ' replaced — check the names, then Apply names' : 'Not found in the names');
+      }
       else if (act === 'skipimport') { pendingImport = null; closeModal(); nextImport(); }
     } else if (el.hasAttribute('data-gsrc')) $('modalCard').__genSrc(a('data-gsrc'));
     else if (el.hasAttribute('data-gencreate')) genCreate(a('data-gencreate') === '2');
@@ -1031,9 +1084,9 @@ html.lt-pixel .logo { background: var(--accent); }
     }
     else if (el.hasAttribute('data-addsub')) {
       var wrap = document.createElement('div'); wrap.innerHTML = $('modalCard').__subRow({ id: '', title: '', assignees: $('eWho').value, due: $('eDue').value, status: 'Not started', notes: '' });
-      $('eSubs').appendChild(wrap.firstChild); $('eSubs').lastChild.querySelector('.s-title').focus();
+      $('eSubs').appendChild(wrap.firstChild); $('eSubs').lastChild.querySelector('.s-title').focus(); subCount();
     }
-    else if (el.hasAttribute('data-delsub')) el.closest('.subrow').remove();
+    else if (el.hasAttribute('data-delsub')) { el.closest('.subrow').remove(); subCount(); }
     else if (el.hasAttribute('data-addgroup')) { var w = document.createElement('div'); w.innerHTML = $('modalCard').__groupRow({ id: '', name: '', members: [] }); $('gRows').appendChild(w.firstChild); $('gRows').lastChild.querySelector('.g-name').focus(); }
     else if (el.hasAttribute('data-delgroup')) {
       var gid = a('data-delgroup'), cnt = D.tasks.filter(function (t) { return t.group === gid; }).length;

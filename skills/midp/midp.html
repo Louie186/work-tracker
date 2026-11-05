@@ -170,6 +170,12 @@ label.field > span { font-family: "Silkscreen", monospace; }
   color: var(--c, var(--muted)); white-space: nowrap; background: transparent;
 }
 .tag.fill { background: var(--c); color: var(--panel); }
+.gc-list { display: grid; gap: 2px; max-height: 55vh; overflow: auto; margin: 6px 0; }
+.gc-i { display: grid; grid-template-columns: 26px 1fr auto auto; gap: 4px; align-items: center; padding: 3px 4px; border-bottom: 1px solid var(--edge); font-size: 13px; }
+.gc-i.lock { color: var(--muted); grid-template-columns: 26px 1fr; }
+.gc-i .gc-t.off { color: var(--muted); text-decoration: line-through; }
+.gc-i .btn { padding: 1px 7px; }
+.btn.small.on { border-color: var(--info); color: var(--info); }
 .c-ok { --c: var(--ok); } .c-bad { --c: var(--bad); } .c-warn { --c: var(--warn); }
 .c-info { --c: var(--info); } .c-odd { --c: var(--odd); } .c-mute { --c: var(--muted); } .c-ink { --c: var(--ink); }
 .rev { font: 13px "Jersey 10", monospace; padding: 0 5px; background: var(--raise); border: 2px solid var(--edge); white-space: nowrap; }
@@ -2543,11 +2549,59 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
   function activeFilters(name, cols) { return Object.keys(S.cf[name] || {}).filter(function (k) { return colOf(cols, k); }); }
 
   /* Draws a table. opts: { limit, more (S.ui key for "Show all"), key(r), rowClass(r), empty, title (for export) } */
+  /* ⚙ Columns: hide and re-order the columns of any table (saved per table).
+     Drawing number, Description / Title, Tower and Typology always stay, in their place. */
+  function colLocked(c) {
+    if (!c || c.stick || !String(c.label || '').trim()) return true;
+    if (['num', 'title', 'tower', 'typ', 'idx', 'st'].indexOf(c.k) > -1) return true;
+    return /^(#|drawing( number| no\.?)?|number|description|title|tower|typolog)/i.test(String(c.label).trim());
+  }
+  function colPref(name) { SET.cols = SET.cols || {}; return SET.cols[name] || { hide: [], order: [] }; }
+  function colOrdered(name, cols) {
+    const p = colPref(name), order = p.order || [];
+    const free = cols.filter(function (c) { return !colLocked(c); });
+    const rank = function (c) { const i = order.indexOf(c.k); return i < 0 ? 1000 + cols.indexOf(c) : i; };
+    const sorted = free.slice().sort(function (a, b) { return rank(a) - rank(b); });
+    let j = 0;
+    return cols.map(function (c) { return colLocked(c) ? c : sorted[j++]; });
+  }
+  function colArranged(name, cols) {
+    const hide = new Set(colPref(name).hide || []);
+    return colOrdered(name, cols).filter(function (c) { return colLocked(c) || !hide.has(c.k); });
+  }
+  function colSave(name, p) { SET.cols = SET.cols || {}; SET.cols[name] = p; saveSettings(); }
+  function openColsPanel(name, btn) {
+    const g = GRIDS[name]; if (!g || !btn) return;
+    const p = colPref(name), hide = new Set(p.hide || []), all = colOrdered(name, g.all);
+    const free = all.filter(function (c) { return !colLocked(c); });
+    const pop = $('#cfPop');
+    pop.innerHTML = '<div class="sec-h" style="margin:0"><h2 style="margin:0">⚙ Columns</h2><button class="btn small" type="button" data-act="cfclose" aria-label="Close">✕</button></div>' +
+      '<p class="hint" style="margin:0">Tick = shown. ▲ ▼ = order. 🔒 columns always stay.</p><div class="gc-list">' +
+      all.map(function (c) {
+        const lab = esc(String(c.label || '').trim() || 'Status dot / tick box');
+        if (colLocked(c)) return '<div class="gc-i lock"><span class="gc-b">🔒</span><span class="gc-t">' + lab + '</span></div>';
+        const i = free.indexOf(c);
+        return '<div class="gc-i"><label class="gc-b"><input type="checkbox" data-act="gcol" data-grid="' + esc(name) + '" data-k="' + esc(c.k) + '"' + (hide.has(c.k) ? '' : ' checked') + ' aria-label="Show ' + lab + '"></label>' +
+          '<span class="gc-t' + (hide.has(c.k) ? ' off' : '') + '">' + lab + '</span>' +
+          '<button class="btn small" type="button" data-act="gmove" data-grid="' + esc(name) + '" data-k="' + esc(c.k) + '" data-v="-1"' + (i === 0 ? ' disabled' : '') + ' aria-label="Move up">▲</button>' +
+          '<button class="btn small" type="button" data-act="gmove" data-grid="' + esc(name) + '" data-k="' + esc(c.k) + '" data-v="1"' + (i === free.length - 1 ? ' disabled' : '') + ' aria-label="Move down">▼</button></div>';
+      }).join('') + '</div>' +
+      '<div class="toolbar" style="margin:0"><button class="btn small" type="button" data-act="gcolsall" data-grid="' + esc(name) + '">Show all</button><button class="btn small" type="button" data-act="gcolsreset" data-grid="' + esc(name) + '">Reset order</button><span class="grow"></span><button class="btn small primary" type="button" data-act="cfclose">Done</button></div>';
+    pop.hidden = false; CF = { colsPanel: name };
+    const r = btn.getBoundingClientRect(), w = Math.min(340, window.innerWidth - 24);
+    pop.style.width = w + 'px';
+    pop.style.left = Math.max(12, Math.min(r.right - w, window.innerWidth - w - 12)) + 'px';
+    pop.style.top = Math.max(12, Math.min(r.bottom + 6, window.innerHeight - Math.min(pop.offsetHeight, window.innerHeight * 0.75) - 12)) + 'px';
+  }
+  function colsAgain(name) { render(); const b = document.querySelector('[data-act="gcols"][data-grid="' + name + '"]'); if (b) openColsPanel(name, b); }
+
   function grid(name, base, cols, opts) {
     opts = opts || {};
+    const allCols = cols; cols = colArranged(name, cols);
+    const nHidden = allCols.length - cols.length;
     const keyOf = opts.key || function (r) { return r.key; };
     const list = gridSorted(name, gridFiltered(name, base, cols), cols);
-    GRIDS[name] = { base: base, cols: cols, list: list, title: opts.title || name };
+    GRIDS[name] = { base: base, cols: cols, all: allCols, list: list, title: opts.title || name };
     const cf = S.cf[name] || {}, s = S.sort[name], limit = opts.limit || Infinity, act = activeFilters(name, cols);
     const nTicked = S.picked ? list.filter(function (r) { return r && r.key && S.picked.has(r.key); }).length : 0;
 
@@ -2555,7 +2609,8 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
     let h = '<div class="gridbar"><span class="hint">' + (list.length === base.length ? plural(base.length, 'row') : list.length + ' of ' + base.length + ' rows') +
       (act.length ? ' · filtered by ' + act.map(function (k) { return '<b>' + esc(colOf(cols, k).label) + '</b>'; }).join(', ') : '') + '</span>' +
       (act.length ? '<button class="btn small" type="button" data-act="cfclearall" data-grid="' + name + '">Clear column filters</button>' : '') +
-      '<span class="grow"></span><button class="btn small" type="button" data-act="exportview" data-grid="' + name + '" title="' + (nTicked ? 'Export only the ticked rows' : 'Export the rows you see now (after filters)') + '">⤓ ' + (nTicked ? 'Export ' + nTicked + ' selected' : 'Export this view') + '</button>' +
+      '<span class="grow"></span><button class="btn small' + (nHidden ? ' on' : '') + '" type="button" data-act="gcols" data-grid="' + name + '" title="Hide or re-order columns">⚙ Columns' + (nHidden ? ' · ' + nHidden + ' hidden' : '') + '</button>' +
+      '<button class="btn small" type="button" data-act="exportview" data-grid="' + name + '" title="' + (nTicked ? 'Export only the ticked rows' : 'Export the rows you see now (after filters)') + '">⤓ ' + (nTicked ? 'Export ' + nTicked + ' selected' : 'Export this view') + '</button>' +
       (base.length && base[0] && base[0].v && 'num' in base[0] ? '<label class="btn small" title="Load this view back after editing it in Excel — you see the changes first">⤒ Import edits<input type="file" data-kind="track" accept=".xlsx,.xlsm,.xls" hidden></label>' : '') + '</div>';
 
     // fixed widths (resizable) and sticky first columns
@@ -2610,7 +2665,9 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
       '<div class="toolbar" style="margin:0"><button class="btn small" type="button" data-act="cfsort" data-v="1">Sort A → Z</button><button class="btn small" type="button" data-act="cfsort" data-v="-1">Sort Z → A</button></div>' +
       '<input type="search" id="cfQ" placeholder="Search values" aria-label="Search values">' +
       '<label class="cf-i"><input type="checkbox" id="cfAll"> <span class="cf-t"><b>Select all</b></span></label><div class="cf-list" id="cfList"></div>' +
-      '<div class="toolbar" style="margin:0"><button class="btn small" type="button" data-act="cfclear">Clear filter</button><span class="grow"></span><button class="btn small primary" type="button" data-act="cfok">Apply</button></div>';
+      '<div class="toolbar" style="margin:0"><button class="btn small" type="button" data-act="cfclear">Clear filter</button>' +
+      (colLocked(col) ? '' : '<button class="btn small" type="button" data-act="ghide" data-grid="' + esc(name) + '" data-k="' + esc(k) + '" title="Hide this column (⚙ Columns brings it back)">🙈 Hide column</button>') +
+      '<span class="grow"></span><button class="btn small primary" type="button" data-act="cfok">Apply</button></div>';
     cfDraw();
     pop.hidden = false;
     const r = btn.getBoundingClientRect(), w = Math.min(400, window.innerWidth - 24);
@@ -3796,6 +3853,26 @@ body.retro #subTabs .tab[aria-selected="true"] { background:var(--sec, var(--acc
       if (CF && CF.name === g && CF.k === k) closeCF(); else openCF(g, k, el);
     },
     cfclose: closeCF,
+    gcols: function (el) { const n = el.getAttribute('data-grid'); if (CF && CF.colsPanel === n) { closeCF(); return; } closeCF(); openColsPanel(n, el); },
+    gcol: function (el) {
+      const n = el.getAttribute('data-grid'), k = el.getAttribute('data-k'), p = colPref(n), hide = new Set(p.hide || []);
+      if (el.checked) hide.delete(k); else hide.add(k);
+      colSave(n, { hide: Array.from(hide), order: p.order || [] }); colsAgain(n);
+    },
+    gmove: function (el) {
+      const n = el.getAttribute('data-grid'), k = el.getAttribute('data-k'), d = +el.getAttribute('data-v'), g = GRIDS[n]; if (!g) return;
+      const keys = colOrdered(n, g.all).filter(function (c) { return !colLocked(c); }).map(function (c) { return c.k; });
+      const i = keys.indexOf(k), j = i + d; if (i < 0 || j < 0 || j >= keys.length) return;
+      keys[i] = keys[j]; keys[j] = k;
+      colSave(n, { hide: colPref(n).hide || [], order: keys }); colsAgain(n);
+    },
+    gcolsall: function (el) { const n = el.getAttribute('data-grid'); colSave(n, { hide: [], order: colPref(n).order || [] }); colsAgain(n); },
+    gcolsreset: function (el) { const n = el.getAttribute('data-grid'); colSave(n, { hide: colPref(n).hide || [], order: [] }); colsAgain(n); },
+    ghide: function (el) {
+      const n = el.getAttribute('data-grid'), k = el.getAttribute('data-k'), p = colPref(n), hide = new Set(p.hide || []); hide.add(k);
+      colSave(n, { hide: Array.from(hide), order: p.order || [] }); closeCF(); render();
+      toast('Column hidden — bring it back with ⚙ Columns');
+    },
     cfok: applyCF,
     cfsort: function (el) { S.sort[CF.name] = { k: CF.k, dir: +el.getAttribute('data-v') }; closeCF(); render(); },
     cfclear: function () {

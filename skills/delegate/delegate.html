@@ -153,6 +153,12 @@ textarea { font: inherit; }
 .ev { display: block; width: 100%; text-align: left; margin-top: 4px; padding: 3px 6px; border-radius: 6px; font-size: 11.5px; border: 0; border-left: 3px solid var(--muted); background: var(--soft2); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
 .ev.ip { border-left-color: var(--amber); } .ev.ok { border-left-color: var(--green); opacity: .7; text-decoration: line-through; } .ev.lt { border-left-color: var(--red); color: var(--red); }
 .ev.parent { font-weight: 700; }
+.ev { display: flex; align-items: center; gap: 4px; } .ev .evt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev .evn { flex: none; font-size: 10px; font-weight: 700; padding: 0 5px; border-radius: 99px; background: color-mix(in srgb, var(--ink) 10%, transparent); color: var(--ink); text-decoration: none; }
+.ev .evl { flex: none; font-size: 10px; font-weight: 700; color: var(--red); }
+.ev.ok .evn { text-decoration: none; }
+.evmore { display: block; width: 100%; margin-top: 4px; padding: 2px 6px; border: 1px dashed var(--line); border-radius: 6px; background: none; color: var(--accent); font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; text-align: left; }
+.day.open { position: relative; z-index: 2; box-shadow: 0 8px 24px rgba(0,0,0,.18); background: var(--card, var(--panel)); }
 @media (max-width: 760px) { .day { min-height: 70px; padding: 3px; } .ev { font-size: 10px; padding: 2px 3px; } }
 /* ---------- 8. Pop-up, form, toast ---------- */
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: flex-start; justify-content: center; padding: 30px 12px; z-index: 50; overflow: auto; }
@@ -416,23 +422,38 @@ html.lt-pixel .logo { background: var(--accent); }
   function renderCal(list) {
     var y = +UI.month.slice(0, 4), m = +UI.month.slice(5, 7) - 1;
     var first = new Date(y, m, 1), start = new Date(y, m, 1 - ((first.getDay() + 6) % 7));
-    var items = {};
-    var add = function (date, html) { if (!date) return; (items[date] = items[date] || []).push(html); };
+    // one line per task per day: the task itself and/or its checklist items due that day (not one line per item)
+    var days = {};
+    var slot = function (date, t) { var d = days[date] = days[date] || {}; return d[t.id] = d[t.id] || { t: t, main: false, items: [] }; };
+    var mine = function (t, s) { return !UI.person || split(s.assignees).some(function (n) { return n.toLowerCase() === UI.person.toLowerCase(); }) || split(t.assignees).some(function (n) { return n.toLowerCase() === UI.person.toLowerCase(); }); };
     list.forEach(function (t) {
-      var st = statusOf(t);
-      add(t.due, '<button class="ev parent ' + (isLate(t.due, st) ? 'lt' : cls(st)) + '" data-edit="' + t.id + '" title="' + esc(t.code + ' ' + t.title + ' — ' + (t.assignees || '')) + '">' + esc(t.title) + '</button>');
-      t.subs.forEach(function (s) {
-        if (UI.person && !split(s.assignees).some(function (n) { return n.toLowerCase() === UI.person.toLowerCase(); }) && !split(t.assignees).some(function (n) { return n.toLowerCase() === UI.person.toLowerCase(); })) return;
-        var due = s.due || t.due; if (!due || due === t.due && !s.due) return;
-        add(due, '<button class="ev ' + (isLate(due, s.status) ? 'lt' : cls(s.status)) + '" data-edit="' + t.id + '" title="' + esc(s.code + ' ' + s.title + ' — ' + (s.assignees || '')) + '">↳ ' + esc(s.title) + '</button>');
-      });
+      if (t.due) slot(t.due, t).main = true;
+      t.subs.forEach(function (s) { var due = s.due || t.due; if (!due || !mine(t, s)) return; slot(due, t).items.push(s); });
+    });
+    var chip = function (date, g) {
+      var t = g.t, st = statusOf(t), its = g.items, done = its.filter(function (s) { return s.status === 'Completed'; }).length;
+      var late = its.filter(function (s) { return isLate(date, s.status); }).length + (g.main && !t.subs.length && isLate(t.due, st) ? 1 : 0);
+      var all = g.main ? t.subs.length : its.length, allDone = g.main ? t.subs.filter(function (s) { return s.status === 'Completed'; }).length : done;
+      var c = late ? 'lt' : (g.main ? st === 'Completed' : done === its.length && its.length) ? 'ok' : (g.main ? st !== 'Not started' : its.some(function (s) { return s.status !== 'Not started'; })) ? 'ip' : '';
+      var count = all ? ' <span class="evn">' + allDone + '/' + all + '</span>' : '';
+      var tip = t.code + ' ' + t.title + (g.main ? ' — due' : ' — ' + its.length + ' item(s) due') + (all ? ' · ' + allDone + ' of ' + all + ' done' : '') + (late ? ' · ' + late + ' late' : '') + (t.assignees ? ' · ' + t.assignees : '');
+      return '<button class="ev ' + (g.main ? 'parent ' : '') + c + '" data-edit="' + t.id + '" title="' + esc(tip) + '"><span class="evt">' + (g.main ? '' : '↳ ') + esc(t.title) + '</span>' + count + (late ? ' <span class="evl">' + late + ' late</span>' : '') + '</button>';
+    };
+    var MAX = 3;
+    var items = {};
+    Object.keys(days).forEach(function (date) {
+      var gs = Object.keys(days[date]).map(function (id) { return days[date][id]; });
+      gs.sort(function (a, b) { return (b.main - a.main) || String(a.t.code).localeCompare(String(b.t.code), undefined, { numeric: true }); });
+      var open = UI.calOpen === date, shown = open ? gs : gs.slice(0, MAX);
+      items[date] = shown.map(function (g) { return chip(date, g); });
+      if (gs.length > MAX) items[date].push('<button class="evmore" data-calday="' + date + '">' + (open ? 'Show less' : '+' + (gs.length - MAX) + ' more') + '</button>');
     });
     var html = '<section class="card"><div class="calh"><button class="btn sm" data-mon="-1">‹</button><h3>' + first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) + '</h3><button class="btn sm" data-mon="1">›</button>' +
-      '<button class="btn sm" data-mon="0">Today</button><span class="small">Bold = main task · ↳ = subtask · red = overdue</span></div><div class="cal">' +
+      '<button class="btn sm" data-mon="0">Today</button><span class="small">Bold = task due · ↳ = its items due that day · 3/10 = items done · red = late</span></div><div class="cal">' +
       ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(function (d) { return '<div class="dn">' + d + '</div>'; }).join('');
     for (var i = 0; i < 42; i++) {
       var d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i), k = dkey(d);
-      html += '<div class="day' + (d.getMonth() !== m ? ' other' : '') + (k === TODAY ? ' today' : '') + '"><div class="n">' + d.getDate() + '</div>' + (items[k] || []).join('') + '</div>';
+      html += '<div class="day' + (d.getMonth() !== m ? ' other' : '') + (k === TODAY ? ' today' : '') + (UI.calOpen === k ? ' open' : '') + '"><div class="n">' + d.getDate() + '</div>' + (items[k] || []).join('') + '</div>';
     }
     $('main').innerHTML = html + '</div></section>';
   }
@@ -1190,7 +1211,7 @@ html.lt-pixel .logo { background: var(--accent); }
   /* ===== 8. Wiring ===== */
   function toast(m) { var t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast.tm); toast.tm = setTimeout(function () { t.classList.remove('show'); }, 2600); }
   document.addEventListener('click', function (e) {
-    var el = e.target.closest('[data-act],[data-gsrc],[data-gencreate],[data-person],[data-view],[data-edit],[data-open],[data-coll],[data-new-in],[data-close],[data-savetask],[data-deltask],[data-addsub],[data-delsub],[data-addgroup],[data-delgroup],[data-savegroups],[data-makeexcel],[data-applyimport],[data-mon]');
+    var el = e.target.closest('[data-calday],[data-act],[data-gsrc],[data-gencreate],[data-person],[data-view],[data-edit],[data-open],[data-coll],[data-new-in],[data-close],[data-savetask],[data-deltask],[data-addsub],[data-delsub],[data-addgroup],[data-delgroup],[data-savegroups],[data-makeexcel],[data-applyimport],[data-mon]');
     if (!el) { if (e.target === $('modal')) closeModal(); return; }
     var a = function (k) { return el.getAttribute(k); };
     if (el.hasAttribute('data-act')) {
@@ -1268,6 +1289,7 @@ html.lt-pixel .logo { background: var(--accent); }
     } else if (el.hasAttribute('data-gsrc')) $('modalCard').__genSrc(a('data-gsrc'));
     else if (el.hasAttribute('data-gencreate')) genCreate(a('data-gencreate') === '2');
     else if (el.hasAttribute('data-person')) { e.preventDefault(); UI.person = a('data-person') === '(no one)' ? '' : a('data-person'); UI.view = 'list'; saveUI(); render(); }
+    else if (el.hasAttribute('data-calday')) { UI.calOpen = UI.calOpen === a('data-calday') ? '' : a('data-calday'); render(); }
     else if (el.hasAttribute('data-view')) { UI.view = a('data-view'); saveUI(); render(); }
     else if (el.hasAttribute('data-open')) { var id = a('data-open'); UI.open[id] = UI.open[id] === false; saveUI(); render(); }
     else if (el.hasAttribute('data-coll')) { if (e.target.closest('[data-new-in]')) return; var g = a('data-coll'); UI.collapsed[g] = !UI.collapsed[g]; saveUI(); render(); }

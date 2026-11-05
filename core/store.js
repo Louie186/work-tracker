@@ -367,7 +367,7 @@
 
   var css = document.createElement('style');
   css.textContent = '.lt-gate{display:grid;place-items:center;min-height:50vh;padding:20px}.lt-gate-in{max-width:520px;text-align:center;display:grid;gap:10px;justify-items:center}.lt-gate-in p{margin:0;color:var(--muted)}' +
-    '.lt-store-offer{position:fixed;left:12px;right:12px;bottom:12px;z-index:80;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 14px;border-radius:14px;background:var(--card,#fff);color:var(--ink,#111);box-shadow:0 10px 30px rgba(0,0,0,.25);border:1px solid var(--line,#ddd);font-size:13.5px}.lt-store-offer span{flex:1;min-width:220px}';
+    '.lt-store-offer{position:fixed;left:12px;right:12px;bottom:12px;z-index:80;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 14px;border-radius:14px;background:var(--panel,var(--card,#fff));color:var(--ink,#111);box-shadow:0 10px 30px rgba(0,0,0,.35);border:1px solid var(--line,var(--edge,#ddd));font-size:13.5px}.lt-store-offer span{flex:1;min-width:220px}';
   (document.head || document.documentElement).appendChild(css);
 
   window.LTStore = {

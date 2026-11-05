@@ -174,6 +174,7 @@ textarea { font: inherit; }
 .subrow.sub-c .s-no { display: flex; align-items: center; gap: 2px; justify-content: flex-end; cursor: pointer; } .subrow.sub-c .s-no input { margin: 0; width: 13px; height: 13px; }
 .sub-bulk { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; padding: 5px 6px; margin: 2px 0 6px; border: 1px dashed var(--line, #d9d4c7); border-radius: 8px; }
 .sub-bulk[hidden] { display: none; } .sub-bulk select, .sub-bulk input { padding: 3px 6px; font-size: 12px; width: auto; max-width: 180px; } .sub-bulk .grow { flex: 1; } .sub-bulk select[hidden] { display: none; }
+.emidp { margin: 6px 0; } .emidp-r { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; } .emidp-r select { flex: 1; min-width: 200px; padding: 4px 8px; font-size: 12.5px; }
 .gdiag { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; } .gdiag .btn { margin-left: 4px; }
 .gshare span { display: flex; gap: 6px; align-items: center; color: var(--ink); } .gshare input { width: auto; }
 /* compact task editor */
@@ -461,7 +462,8 @@ html.lt-pixel .logo { background: var(--accent); }
       '<label>Due date<input id="eDue" type="date" value="' + esc(t.due) + '"></label>' +
       '<label>Status<select id="eSt"' + (t.subs.length ? ' disabled title="Comes from its subtasks"' : '') + '>' + ST.map(function (x) { return '<option' + (x === statusOf(t) ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></label>' +
       '<label class="full">Description / notes<textarea id="eNotes" rows="2" placeholder="What needs doing, links, model names…">' + esc(t.notes) + '</textarea></label></div>' +
-      '<div class="subs"><div class="subs-h"><b>Checklist <span class="small" id="eSubN">' + (t.subs.length ? '(' + t.subs.length + ')' : '') + '</span></b><span class="subs-b"><button class="btn xs" type="button" data-act="ebulk" title="Edit all names at once, or find & replace">✎ Edit names</button><button class="btn xs" type="button" data-act="epaste">📋 Paste list</button><button class="btn xs" type="button" data-addsub>+ Item</button></span></div>' +
+      '<div class="subs"><div class="subs-h"><b>Checklist <span class="small" id="eSubN">' + (t.subs.length ? '(' + t.subs.length + ')' : '') + '</span></b><span class="subs-b"><button class="btn xs" type="button" data-act="ebulk" title="Edit all names at once, or find & replace">✎ Edit names</button><button class="btn xs" type="button" data-act="emidp" title="Add the drawings of a MIDP Checker list (Drawing set, submission, Lookup list)">▦ From MIDP</button><button class="btn xs" type="button" data-act="epaste">📋 Paste list</button><button class="btn xs" type="button" data-addsub>+ Item</button></span></div>' +
+      '<div id="eMidp" hidden class="pastewrap emidp"></div>' +
       '<div id="eBulk" hidden class="pastewrap bulk"><p class="small" style="margin:0 0 4px">One name per line, in order. Change any line, add lines for new items. A blank line removes that item.</p><textarea id="eBulkText" rows="8"></textarea>' +
         '<div class="bulk-r"><input id="eFind" placeholder="Find (e.g. -T1)"><input id="eRepl" placeholder="Replace with (e.g. -T2)"><button class="btn xs" type="button" data-act="efr">Replace in all names</button><span class="grow"></span><button class="btn xs" type="button" data-act="ebulk">Cancel</button><button class="btn xs primary" type="button" data-act="ebulkok">Apply names</button></div></div>' +
       '<div id="ePaste" hidden class="pastewrap">' + pasteBox('ePasteBox', 'Paste rows from Excel or the MIDP Checker — one item per row') + '<div style="display:flex;justify-content:flex-end;gap:6px;margin-top:6px"><button class="btn sm" data-act="epaste">Cancel</button><button class="btn sm primary" data-act="epasteadd">Add as subtasks</button></div></div>' +
@@ -477,6 +479,11 @@ html.lt-pixel .logo { background: var(--accent); }
     var mc = $('modalCard');
     mc.onchange = function (e) {
       var x = e.target;
+      if (x.id === 'eMidpSel') {
+        var md3 = $('eMidp').__md, l3 = md3 && x.value !== '' ? md3.lists[+x.value] : null, n3 = l3 ? midpRows(l3, md3.X).length : 0;
+        $('eMidpInfo').textContent = l3 ? n3 + ' drawing' + (n3 === 1 ? '' : 's') + ' in this list — they get the task’s person and date (change them after with Assign / Share out).' : '';
+        return;
+      }
       if (x.id === 'ePickAll') { shownRows().forEach(function (r) { r.querySelector('.s-pick').checked = x.checked; }); bulkBar(); }
       else if (x.id === 'eFTower' || x.id === 'eFTyp' || (x.classList && x.classList.contains('s-pick'))) bulkBar();
       else if (x.classList && x.classList.contains('s-title')) refreshRow(x.closest('.subrow'));
@@ -490,6 +497,18 @@ html.lt-pixel .logo { background: var(--accent); }
     var t = r.querySelector('.s-title').value, ref = refFromTitle(t) || r.getAttribute('data-ref') || '', f = infoOf({ title: t, ref: ref }) || {};
     r.setAttribute('data-ref', ref); r.setAttribute('data-tower', f.tower || ''); r.setAttribute('data-typ', f.typS || '');
     r.querySelector('.s-meta').innerHTML = chipsHtml({ title: t, ref: ref }); bulkBar();
+  }
+  // ▦ From MIDP (inside a task): pick a MIDP Checker list, add its drawings as checklist items
+  function midpPanel() {
+    var pn = $('eMidp'); if (!pn) return;
+    var md = midpData(); pn.__md = md;
+    var groups = ['Drawing sets', 'Submissions', 'Lookup lists'];
+    pn.innerHTML = '<div class="emidp-r"><select id="eMidpSel">' + (md.lists.length ? '<option value="">Pick a MIDP Checker list…</option>' + groups.map(function (g) {
+        var o = md.lists.map(function (l, i) { return l.grp !== g ? '' : '<option value="' + i + '">' + (l.kind === 'search' ? '⚡ ' : l.kind === 'entries' ? (g === 'Submissions' ? '📅 ' : '📦 ') : '📌 ') + esc(l.name) + (l.kind === 'entries' ? ' (' + l.entries.length + ')' : '') + '</option>'; }).join('');
+        return o ? '<optgroup label="' + g + '">' + o + '</optgroup>' : ''; }).join('') : '<option value="">No lists found</option>') + '</select>' +
+      '<button class="btn xs primary" type="button" data-act="emidpadd">Add to checklist</button><button class="btn xs" type="button" data-act="emidpre" title="Read the MIDP Checker again">↻</button><button class="btn xs" type="button" data-act="emidp">Cancel</button></div>' +
+      '<p class="small" id="eMidpInfo">' + (md.lists.length ? 'Each drawing becomes one item with its Tower · Typology · Model. Drawings already in the checklist are skipped.' : 'No lists yet — add a list to a Drawing set, load a submission, or make a Lookup list in the MIDP Checker.') + '</p>' +
+      '<p class="small gdiag">' + esc(md.diag) + '</p>';
   }
   function shownRows() { return Array.prototype.filter.call(document.querySelectorAll('#eSubs .subrow'), function (r) { return !r.hidden; }); }
   function picked() { return shownRows().filter(function (r) { return r.querySelector('.s-pick').checked; }); }
@@ -1183,6 +1202,20 @@ html.lt-pixel .logo { background: var(--accent); }
         var its = pasteGet('ePasteBox'); if (!its.length) { toast('Paste a list first'); return; }
         its.forEach(function (x) { var w = document.createElement('div'); w.innerHTML = $('modalCard').__subRow({ id: '', title: x.title, assignees: x.assignees || $('eWho').value, due: x.due || $('eDue').value, status: 'Not started', notes: '' }); $('eSubs').appendChild(w.firstChild); });
         pasteSet('ePasteBox', ''); $('ePaste').hidden = true; subCount(); toast(its.length + ' item' + (its.length === 1 ? '' : 's') + ' added — press Save');
+      }
+      else if (act === 'emidp') { var pn = $('eMidp'); pn.hidden = !pn.hidden; if (!pn.hidden) midpPanel(); }
+      else if (act === 'emidpre') midpPanel();
+      else if (act === 'emidpadd') {
+        var md2 = $('eMidp').__md, sel2 = $('eMidpSel'); if (!md2 || !sel2 || sel2.value === '') { toast('Pick a list first'); return; }
+        var have = {}; Array.prototype.forEach.call(document.querySelectorAll('#eSubs .subrow'), function (r) { var k = r.getAttribute('data-ref') || refFromTitle(r.querySelector('.s-title').value); if (k) have[k] = 1; });
+        var rows2 = midpRows(md2.lists[+sel2.value], md2.X), added = 0, skipped = 0;
+        rows2.forEach(function (r) {
+          var ref = baseNum(r[1]); if (have[ref]) { skipped++; return; } have[ref] = 1;
+          var w3 = document.createElement('div'); w3.innerHTML = $('modalCard').__subRow({ id: '', title: midpTitle(r), ref: ref, assignees: $('eWho').value, due: $('eDue').value, status: 'Not started', notes: '' });
+          $('eSubs').appendChild(w3.firstChild); added++;
+        });
+        $('eMidp').hidden = true; subCount();
+        toast(added + ' drawing' + (added === 1 ? '' : 's') + ' added' + (skipped ? ' · ' + skipped + ' already in the checklist' : '') + ' — press Save');
       }
       else if (act === 'eassign') {
         var to = $('eAssignTo').value.trim(), pk = picked(); if (!to) { toast('Type or pick a person first'); $('eAssignTo').focus(); return; }

@@ -33,6 +33,7 @@
 <link rel="icon" type="image/png" sizes="32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <title>Lew's Tracker v10</title>
+<script src="core/store.js"></script>
 <script src="core/theme.js"></script>
 <link rel="stylesheet" href="core/app.css">
 <link rel="stylesheet" href="core/theme.css">
@@ -555,10 +556,11 @@
         </div>
         <label class="small"><input type="checkbox" id="autoBackupHint" onchange="setBackupHint(this.checked)" style="width:auto"> Remind me to export backups</label>
         <label class="small"><input type="checkbox" id="introToggle" onchange="setIntroReplay(this.checked)" style="width:auto"> Show the intro on launch</label>
-        <details class="set-more"><summary>Folder storage <span class="small">(Chrome / Edge on a PC only)</span></summary>
-          <p class="small">Keep a copy of your data and attachments in a folder on this PC — one folder per tab, one per task.</p>
-          <div class="panel-actions"><button class="btn primary" onclick="chooseSaveFolder()">📁 Choose folder</button><button class="btn" onclick="saveToSelectedFolder(true)">💾 Save now</button><button class="btn" onclick="loadFromSelectedFolder(true)">↻ Load</button></div>
-          <div class="small" id="folderSaveStatus">No folder selected — using browser storage only</div>
+        <details class="set-more" open><summary>📁 Data folder <span class="small">(where your feature data is saved)</span></summary>
+          <p class="small">MIDP Checker, Delegation, QA/QC… are saved here — one file per feature — and not in the browser, so there is no 5 MB limit. Choose a folder on this PC or in OneDrive / SharePoint: another PC opens the same folder and has the same data. To Do, notes and task attachments go into the same folder. Phones / Safari keep the data in the browser’s big storage.</p>
+          <div class="panel-actions" id="ltStoreBtns"></div>
+          <div class="small" id="ltStoreStatus">Loading…</div>
+          <div class="small" id="folderSaveStatus" style="margin-top:4px">No folder selected — using browser storage only</div>
         </details>
         <details class="set-more" open><summary>Offline copies <span class="small">(one file, no website, no internet)</span></summary>
           <p class="small">Download a feature as one file with your data in it. Work in it anywhere, press <b>⬇ Save work for website</b> in the file, then bring that work back here.</p>

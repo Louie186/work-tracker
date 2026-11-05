@@ -26,6 +26,7 @@
   function keysOf(f) {
     var out = f.keys.slice();
     if (f.prefix) for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k.indexOf(f.prefix) === 0 && (f.skip || []).indexOf(k) < 0) out.push(k); }
+    if (f.prefix && window.LTStore && LTStore.keys) LTStore.keys(f.prefix).forEach(function (k) { if (out.indexOf(k) < 0 && (f.skip || []).indexOf(k) < 0) out.push(k); });   // data in the folder / big storage
     return out;
   }
   function snapshot(id, f) {

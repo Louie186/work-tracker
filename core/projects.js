@@ -68,11 +68,13 @@
     var q = LT.readJSON('lews_qaqc_state_v1', null), cur = byId(st.active, st);
     if (q && q.activeId && cur) { cur.qaqc = q.activeId; write(st); }
     // 1. park the open project (and make sure it really saved before touching anything)
-    return idbPut(st.active, { at: now(), keys: captureOpen() }).then(function () {
+    var parked = { at: now(), keys: captureOpen() };
+    if (window.LTStore && LTStore.writeExtra) LTStore.writeExtra(String((cur && cur.name) || 'Project').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 60) + ' (' + st.active + ')', Object.assign({ app: "Lew's Tracker", project: (cur && cur.name) || '' }, parked));
+    return idbPut(st.active, parked).then(function () {
       return idbGet(st.active);
     }).then(function (check) {
       if (!check || !check.keys) throw new Error('Could not park the open project — nothing changed');
-      return idbGet(id);
+      return idbGet(id).then(function (snap) { return snap && snap.keys ? snap : (window.LTStore && LTStore.readExtra ? LTStore.readExtra(id) : null); });
     }).then(function (snap) {
       // 2. bring the other project back
       LT.projectKeys().forEach(function (k) { localStorage.removeItem(k); });
@@ -81,7 +83,7 @@
       st.active = id; write(st);
       linkQaqc(byId(id));
       LT.toast('📁 Opening ' + byId(id).name + '…');
-      setTimeout(function () { location.reload(); }, 400);
+      (window.LTStore && LTStore.flushNow ? LTStore.flushNow() : Promise.resolve()).then(function () { setTimeout(function () { location.reload(); }, 300); });
     }).catch(function (e) { alert('Project switch stopped: ' + e.message); });
   }
   // QA/QC keeps its own projects — open the one with the same name if it exists

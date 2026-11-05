@@ -337,7 +337,7 @@ function show(id){
   next.classList.add('active');
   // Lazy-load embedded QA/QC + Register apps on first open
   var fr=next.querySelector('iframe[data-src]');
-  if(fr&&!fr.getAttribute('src')){fr.src=fr.getAttribute('data-src');}
+  if(fr&&!fr.getAttribute('src')){if(window.LTStore&&LTStore.openFrame)LTStore.openFrame(fr);else fr.src=fr.getAttribute('data-src');}
   renderAll();
   if(typeof updateCalcFab==='function')updateCalcFab(id);
 }

@@ -676,6 +676,7 @@ html.lt-pixel .logo { background: var(--accent); }
     var person = scope.indexOf('p:') === 0 ? scope.slice(2) : '';
     var codes = []; p.tasks.forEach(function (t) { codes.push(t.code); t.subs.forEach(function (x) { codes.push(x.code); }); });
     var fileBase = [pr.code || pr.name, p.label].join('_');
+    var STAMP = TODAY + '_' + (function () { var d = new Date(); return String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0'); })();          // e.g. 2026-11-05_1601 — two files the same day never overwrite each other
     var done = function (name, blob) {
       var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
       document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
@@ -685,7 +686,7 @@ html.lt-pixel .logo { background: var(--accent); }
     var safe = function (x) { return x.replace(/[^A-Za-z0-9_-]+/g, '_').replace(/_+/g, '_'); };
     if (fmt === 'pack') {
       var html = LTTaskPack.build({ id: exportId, projectId: pr.id, project: (pr.code ? pr.code + ' ' : '') + pr.name, by: by, at: TODAY, label: p.label, person: person, tasks: p.tasks });
-      done(safe(p.label + '_Tasks_' + TODAY) + '.html', new Blob([html], { type: 'text/html' }));
+      done(safe(p.label + '_Tasks_' + STAMP) + '.html', new Blob([html], { type: 'text/html' }));
       return;
     }
     var btn = document.querySelector('[data-makeexcel]'); btn.disabled = true; btn.textContent = 'Making…';
@@ -693,14 +694,14 @@ html.lt-pixel .logo { background: var(--accent); }
       Promise.all([loadExcel(), fetch('templates/checklist-template.xlsm').then(function (r) { if (!r.ok) throw new Error('Checklist template not found'); return r.arrayBuffer(); })]).then(function (r) {
         if (!window.JSZip) throw new Error('Zip library did not load');
         return LTXlsmTemplate.fill(window.JSZip, r[1], { project: (pr.code ? pr.code + ' ' : '') + pr.name, title: 'Tasks for ' + p.label + '  —  from ' + (by || 'me') + ', ' + TODAY, issued: TODAY, tasks: p.tasks });
-      }).then(function (buf) { done(safe(fileBase + '_Checklist_' + TODAY) + '.xlsm', new Blob([buf], { type: 'application/vnd.ms-excel.sheet.macroEnabled.12' })); })
+      }).then(function (buf) { done(safe(fileBase + '_Checklist_' + STAMP) + '.xlsm', new Blob([buf], { type: 'application/vnd.ms-excel.sheet.macroEnabled.12' })); })
         .catch(function (e) { console.error(e); toast('⚠ ' + e.message); btn.disabled = false; btn.textContent = 'Make file'; });
       return;
     }
     if (fmt === 'simple') {
       loadExcel().then(function () {
         return LTPlannerExcel.toBuffer(LTTaskPack.simpleExcel(window.ExcelJS, { project: (pr.code ? pr.code + ' ' : '') + pr.name, issuedBy: by, issuedAt: new Date(), scope: p.label, tasks: p.tasks }), window.JSZip);
-      }).then(function (buf) { done(safe(fileBase + '_Tasks_' + TODAY) + '.xlsx', new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); })
+      }).then(function (buf) { done(safe(fileBase + '_Tasks_' + STAMP) + '.xlsx', new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); })
         .catch(function (e) { console.error(e); toast('⚠ ' + e.message); btn.disabled = false; btn.textContent = 'Make file'; });
       return;
     }
@@ -709,7 +710,7 @@ html.lt-pixel .logo { background: var(--accent); }
         projectId: pr.id, exportId: exportId, people: p.people, tasks: p.tasks, defaultGroup: scope.indexOf('g:') === 0 ? groupName(scope.slice(2)) : '' });
       return LTPlannerExcel.toBuffer(wb, window.JSZip);
     }).then(function (buf) {
-      done(safe(fileBase + '_Task_Plan_' + TODAY) + '.xlsx', new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+      done(safe(fileBase + '_Task_Plan_' + STAMP) + '.xlsx', new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     }).catch(function (e) { console.error(e); toast('⚠ ' + e.message); btn.disabled = false; btn.textContent = 'Make file'; });
   }
 
@@ -1179,7 +1180,7 @@ html.lt-pixel .logo { background: var(--accent); }
       sheet('Activity', ['When', 'ID', 'Task', 'What happened'], S.hist.map(function (x) { var d = new Date(x.at); return [isNaN(d) ? x.at : dkey(d) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), x.code, x.title, x.text]; }), [17, 8, 40, 70]);
       return LTPlannerExcel.toBuffer(wb, window.JSZip);
     }).then(function (buf) {
-      var pr = project(), name = [pr.code || pr.name, 'Delegation_Summary', TODAY].join('_').replace(/[^A-Za-z0-9_-]+/g, '_') + '.xlsx';
+      var pr = project(), name = [pr.code || pr.name, 'Delegation_Summary', TODAY + '_' + (function () { var d = new Date(); return String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0'); })()].join('_').replace(/[^A-Za-z0-9_-]+/g, '_') + '.xlsx';
       var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); a.download = name;
       document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
       toast('⬇ ' + name);

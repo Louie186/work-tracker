@@ -221,7 +221,7 @@
       else if ((a('data-act') === 'reply' || a('data-act') === 'copy') && !S.name && !P.person) {   // group file: whose reply is this?
         var nmv = prompt('Your name (so ' + (P.by || 'they') + ' knows who this is from):', ''); if (nmv && nmv.trim()) { S.name = nmv.trim(); save(); el.click(); }
       }
-      else if (a('data-act') === 'reply') download('Reply_' + fileName(S.name || P.label) + '_' + TODAY + '.txt', reply(), 'text/plain');
+      else if (a('data-act') === 'reply') download('Reply_' + fileName(S.name || P.label) + '_' + TODAY + '_' + (function () { var d = new Date(); return String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0'); })() + '.txt', reply(), 'text/plain');
       else if (a('data-act') === 'copy') { var txt = reply(); (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function () { alert('Copied. Now paste it into an email or Teams message to ' + (P.by || 'me') + '.'); }, function () { showCopy(txt); }); }
       else if (a('data-act') === 'print') window.print();
       else if (a('data-act') === 'csv') download(fileName(P.label) + '_Tasks_' + TODAY + '.csv', csv(), 'text/csv');

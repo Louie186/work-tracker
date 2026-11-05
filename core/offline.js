@@ -111,7 +111,7 @@
         } catch (e) { alert('Could not read the saved work: ' + e.message); return; }
         var d = new Date(), t = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
         var blob = new Blob([JSON.stringify({ lt_offline_work: 1, feature: INFO.id, name: INFO.name, made: INFO.made, saved: new Date().toISOString(), project: INFO.project, projectName: INFO.projectName, keys: keys })], { type: 'application/json' });
-        var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = INFO.file + '_offline_work_' + t + '.json';
+        var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = INFO.file + '_offline_work_' + t + '_' + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0') + '.json';
         document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
       }
       function bar() {
@@ -158,7 +158,7 @@
         html = html.replace(/<head([^>]*)>/i, function (m) { return m + '\n<!-- ' + f.name + ' — offline copy made ' + made + ' with Lew’s Tracker -->\n' + head; });
         html = html.replace(/<title>([^<]*)<\/title>/i, function (m, t) { return '<title>' + t + ' (offline)</title>'; });
         var blob = new Blob([html], { type: 'text/html' });
-        var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = f.file + '_offline_' + made + '.html';
+        var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = f.file + '_offline_' + made + '_' + (function () { var d = new Date(); return String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0'); })() + '.html';
         document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
         toast('⬇ ' + f.name + ' offline copy ready (' + (blob.size / 1e6).toFixed(1) + ' MB)');
         return blob;

@@ -170,6 +170,20 @@ textarea { font: inherit; }
 .form .full { grid-column: 1 / -1; }
 @media (max-width: 600px) { .form { grid-template-columns: 1fr; } }
 .subs { margin-top: 12px; }
+/* 👥 Team */
+.tsum { padding: 12px 14px; margin-bottom: 12px; } .tk { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; } .tk span { padding: 2px 9px; border-radius: 99px; background: var(--soft); }
+.tk.big span { font-size: 13px; padding: 4px 12px; } .tk.big b { font-size: 16px; margin-right: 3px; }
+.tk .lt { color: var(--red); } .tk .wk { color: var(--amber); } .tk .ok { color: var(--green); }
+.tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; align-items: start; }
+.tcard { padding: 12px; display: grid; gap: 8px; } .tcard.busy { box-shadow: inset 4px 0 0 var(--red); } .tcard.room { box-shadow: inset 4px 0 0 var(--green); }
+.th { display: flex; align-items: center; gap: 8px; } .th b { font-size: 15px; cursor: pointer; } .th .grow { flex: 1; }
+.tg { font-size: 10.5px; font-weight: 700; padding: 1px 8px; border-radius: 99px; } .tg.busy { background: color-mix(in srgb, var(--red) 18%, transparent); color: var(--red); } .tg.room { background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); }
+.tbar { display: flex; height: 8px; border-radius: 99px; overflow: hidden; background: var(--soft); } .tbar i { display: block; height: 100%; }
+.tbar .lt { background: var(--red); } .tbar .wk { background: var(--amber); } .tbar .nx { background: var(--accent); } .tbar .lr { background: color-mix(in srgb, var(--muted) 45%, transparent); }
+.tsec summary { cursor: pointer; font-size: 12.5px; font-weight: 700; padding: 3px 0; } .tsec.lt summary { color: var(--red); }
+.tl { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; border: 0; background: none; color: var(--ink); font: inherit; font-size: 12.5px; padding: 3px 4px; border-radius: 6px; cursor: pointer; }
+.tl:hover { background: var(--soft); } .tl .tc { font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted); } .tl .tt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl .tn { font-size: 10.5px; padding: 0 6px; border-radius: 99px; background: var(--soft); } .tl .tm { font-size: 10.5px; color: var(--red); font-weight: 700; } .tl .td { font-size: 11px; color: var(--muted); white-space: nowrap; }
 /* MIDP tags on checklist items */
 .mi { display: inline-flex; flex-wrap: wrap; gap: 3px; margin-left: 6px; vertical-align: middle; }
 .mc { font-size: 10.5px; line-height: 1.5; padding: 0 6px; border-radius: 99px; border: 1px solid var(--line, #d9d4c7); color: var(--muted); white-space: nowrap; background: var(--card, transparent); }
@@ -241,7 +255,7 @@ html.lt-pixel .logo { background: var(--accent); }
   </div>
 </header>
 <div class="toolbar">
-  <div class="seg" id="viewSeg"><button data-view="list">☰ List</button><button data-view="board">▥ Board</button><button data-view="cal">▦ Calendar</button><button data-view="stats">📊 Overview</button></div>
+  <div class="seg" id="viewSeg"><button data-view="list">☰ List</button><button data-view="board">▥ Board</button><button data-view="cal">▦ Calendar</button><button data-view="team">👥 Team</button><button data-view="stats">📊 Overview</button></div>
   <input type="search" id="q" placeholder="Search tasks, notes, IDs…">
   <select id="fGroup" title="Group"></select>
   <select id="fPerson" title="Person"></select>
@@ -267,6 +281,8 @@ html.lt-pixel .logo { background: var(--accent); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function uid(p) { return (p || 'x') + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
   function iso() { return new Date().toISOString(); }
+  // the day something was finished (Team view: "done this week")
+  function stampDone(x) { if (x.status === 'Completed') { if (!x.doneAt) x.doneAt = TODAY; } else if (x.doneAt) delete x.doneAt; }
   function dkey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   var TODAY = dkey(new Date());
   function fmtDate(s) { if (!s) return ''; var d = new Date(s + 'T00:00:00'); return isNaN(d) ? s : d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' }); }
@@ -361,7 +377,7 @@ html.lt-pixel .logo { background: var(--accent); }
     $('fStatus').value = UI.status; $('q').value = UI.q; $('fDone').checked = UI.showDone;
     var list = visible();
     if (!D.tasks.length) { $('main').innerHTML = '<div class="card empty"><b>No team tasks yet</b>Click <b>+ Task</b> to give out the first one, or send a list from a tool in ⚡ Skills (e.g. Models by level).</div>'; return; }
-    if (UI.view === 'stats') renderStats(); else if (UI.view === 'board') renderBoard(list); else if (UI.view === 'cal') renderCal(list); else renderList(list);
+    if (UI.view === 'team') renderTeam(list); else if (UI.view === 'stats') renderStats(); else if (UI.view === 'board') renderBoard(list); else if (UI.view === 'cal') renderCal(list); else renderList(list);
   }
 
   function whoHtml(s) { return '<div class="who">' + split(s).map(function (n) { return '<span>' + esc(n) + '</span>'; }).join('') + '</div>'; }
@@ -579,11 +595,11 @@ html.lt-pixel .logo { background: var(--accent); }
       var sid = row.getAttribute('data-sid'), old = sid && t.subs.filter(function (x) { return x.id === sid; })[0];
       var s = old || { id: uid('s'), code: t.code + '.' + (++maxN) };
       s.ref = refFromTitle(st) || row.getAttribute('data-ref') || s.ref || ''; if (!s.ref) delete s.ref;
-      s.title = st; s.assignees = row.querySelector('.s-who').value.trim(); s.due = row.querySelector('.s-due').value; s.status = row.querySelector('.s-st').value; s.notes = row.querySelector('.s-notes').value.trim();
+      s.title = st; s.assignees = row.querySelector('.s-who').value.trim(); s.due = row.querySelector('.s-due').value; s.status = row.querySelector('.s-st').value; s.notes = row.querySelector('.s-notes').value.trim(); stampDone(s);
       used[s.id] = 1; subs.push(s);
     });
     t.subs = subs;
-    if (!subs.length) t.status = $('eSt').value;
+    if (!subs.length) { t.status = $('eSt').value; stampDone(t); }
     t.updated = iso();
     if (!id) { t.history.push({ at: iso(), text: 'Created' }); D.tasks.push(t); }
     else if (before !== JSON.stringify([t.title, t.group, t.assignees, t.due, t.status, t.notes, t.subs])) t.history.push({ at: iso(), text: 'Edited' });
@@ -595,7 +611,7 @@ html.lt-pixel .logo { background: var(--accent); }
     var item = sid ? t.subs.filter(function (s) { return s.id === sid; })[0] : t;
     if (!item || item.status === status) return;
     t.history.push({ at: iso(), text: (sid ? item.code + ' ' : '') + 'Status: ' + item.status + ' → ' + status });
-    item.status = status; t.updated = iso();
+    item.status = status; t.updated = iso(); stampDone(item);
     save(); render();
     if (status === 'Completed') ping('done');
   }
@@ -1157,6 +1173,58 @@ html.lt-pixel .logo { background: var(--accent); }
     };
   }
   function when(s) { var d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' }) + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); }
+  /* ===== 👥 Team: who has what — late, this week, next week, later — and who has room ===== */
+  function weekOf(off) {
+    var d = new Date(TODAY + 'T00:00:00'), mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay() + 6) % 7) + off * 7);
+    var sun = new Date(mon); sun.setDate(mon.getDate() + 6); return [dkey(mon), dkey(sun)];
+  }
+  function doneDay(t, x, code) {
+    if (x.doneAt) return x.doneAt;
+    var at = ''; (t.history || []).forEach(function (h) { if (/→ Completed/.test(h.text) && (code ? h.text.indexOf(code + ' ') === 0 : !/^T\S*\.\d+ /.test(h.text))) at = h.at.slice(0, 10); });
+    return at;
+  }
+  function teamData(list) {
+    var w0 = weekOf(0), w1 = weekOf(1), people = {};
+    var add = function (n, u) {
+      var P = people[n] = people[n] || { name: n, late: [], wk: [], nx: [], later: [], nodate: [], done: [] };
+      if (u.st === 'Completed') { if (u.doneAt >= w0[0] && u.doneAt <= w0[1]) P.done.push(u); return; }
+      if (!u.due) P.nodate.push(u); else if (u.due < TODAY) P.late.push(u); else if (u.due <= w0[1]) P.wk.push(u); else if (u.due <= w1[1]) P.nx.push(u); else P.later.push(u);
+    };
+    list.forEach(function (t) {
+      var units = t.subs.length ? t.subs.map(function (s) { var f = infoOf(s) || {}; return { t: t, s: s, who: split(s.assignees || t.assignees), due: s.due || t.due || '', st: s.status, doneAt: s.status === 'Completed' ? doneDay(t, s, s.code) : '', midpLate: f.due === 'overdue' }; })
+        : [{ t: t, s: null, who: split(t.assignees), due: t.due || '', st: statusOf(t), doneAt: statusOf(t) === 'Completed' ? doneDay(t, t, '') : '' }];
+      units.forEach(function (u) { (u.who.length ? u.who : ['(no one)']).forEach(function (n) { add(n, u); }); });
+    });
+    var arr = Object.keys(people).map(function (k) { var P = people[k]; P.open = P.late.length + P.wk.length + P.nx.length; P.all = P.open + P.later.length + P.nodate.length; return P; });
+    if (UI.person) arr = arr.filter(function (P) { return P.name.toLowerCase() === UI.person.toLowerCase(); });
+    var busy = arr.filter(function (P) { return P.open; }), avg = busy.length ? busy.reduce(function (a, P) { return a + P.open; }, 0) / busy.length : 0;
+    arr.forEach(function (P) { P.tag = P.name === '(no one)' ? '' : P.open >= 5 && P.open > avg * 1.4 ? 'busy' : P.open < avg * 0.6 ? 'room' : ''; });
+    arr.sort(function (a, b) { return (a.name === '(no one)') - (b.name === '(no one)') || b.open - a.open || b.all - a.all || a.name.localeCompare(b.name); });
+    return { people: arr, w0: w0, w1: w1, avg: avg };
+  }
+  function renderTeam(list) {
+    var T = teamData(list), max = Math.max.apply(null, [1].concat(T.people.map(function (P) { return P.all; })));
+    var tot = function (k) { return T.people.reduce(function (a, P) { return a + P[k].length; }, 0); };
+    var lines = function (arr) {     // one line per task (its items counted), soonest first
+      var by = {}; arr.forEach(function (u) { var g = by[u.t.id] = by[u.t.id] || { t: u.t, n: 0, due: u.due, midp: 0 }; g.n++; if (u.due && (!g.due || u.due < g.due)) g.due = u.due; if (u.midpLate) g.midp++; });
+      return Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, b) { return (a.due || '9') < (b.due || '9') ? -1 : 1; }).map(function (g) {
+        return '<button class="tl" data-edit="' + g.t.id + '" title="' + esc(g.t.code + ' ' + g.t.title) + '"><span class="tc">' + esc(g.t.code) + '</span><span class="tt">' + esc(g.t.title) + '</span>' +
+          (g.t.subs.length ? '<span class="tn">' + g.n + ' item' + (g.n === 1 ? '' : 's') + '</span>' : '') + (g.midp ? '<span class="tm" title="Late in the MIDP">' + g.midp + ' MIDP late</span>' : '') + '<span class="td">' + esc(g.due ? fmtDate(g.due) : '—') + '</span></button>';
+      }).join('');
+    };
+    var sec = function (title, arr, cls, open) { return arr.length ? '<details class="tsec ' + cls + '"' + (open ? ' open' : '') + '><summary>' + title + ' <b>' + arr.length + '</b></summary>' + lines(arr) + '</details>' : ''; };
+    var cards = T.people.map(function (P) {
+      var seg = function (n, c) { return n ? '<i class="' + c + '" style="width:' + (100 * n / max) + '%" title="' + n + '"></i>' : ''; };
+      return '<div class="card tcard' + (P.tag ? ' ' + P.tag : '') + '"><div class="th"><b data-person="' + esc(P.name) + '" title="Show only ' + esc(P.name) + '">' + esc(P.name) + '</b>' +
+        (P.tag === 'busy' ? '<span class="tg busy">busy</span>' : P.tag === 'room' ? '<span class="tg room">has room</span>' : '') + '<span class="grow"></span><span class="small">' + P.open + ' due by ' + fmtDate(T.w1[1]) + '</span></div>' +
+        '<div class="tbar">' + seg(P.late.length, 'lt') + seg(P.wk.length, 'wk') + seg(P.nx.length, 'nx') + seg(P.later.length + P.nodate.length, 'lr') + '</div>' +
+        '<div class="tk"><span class="lt">' + P.late.length + ' late</span><span class="wk">' + P.wk.length + ' this week</span><span class="nx">' + P.nx.length + ' next week</span><span class="lr">' + (P.later.length + P.nodate.length) + ' later</span><span class="ok">✓ ' + P.done.length + ' done this week</span></div>' +
+        sec('⚠ Late', P.late, 'lt', true) + sec('This week', P.wk, 'wk', true) + sec('Next week', P.nx, 'nx', false) + sec('Later', P.later, 'lr', false) + sec('No date', P.nodate, 'lr', false) + '</div>';
+    }).join('');
+    $('main').innerHTML = '<section class="card tsum"><div class="tk big"><span class="lt"><b>' + tot('late') + '</b> late</span><span class="wk"><b>' + tot('wk') + '</b> this week (to ' + fmtDate(T.w0[1]) + ')</span><span class="nx"><b>' + tot('nx') + '</b> next week</span><span class="lr"><b>' + (tot('later') + tot('nodate')) + '</b> later / no date</span><span class="ok"><b>' + tot('done') + '</b> done this week</span></div>' +
+      '<p class="small" style="margin:6px 0 0">Counts are checklist items (or tasks without items). <b>busy</b> = much more than the team average due by next week, <b>has room</b> = much less. Click a name to see only that person, a line to open the task. Use the Group filter above for one team.</p></section>' +
+      (T.people.length ? '<div class="tgrid">' + cards + '</div>' : '<div class="card empty"><b>No open work</b>Nothing assigned with these filters.</div>');
+  }
   function renderStats() {
     var S = statsData(), q = (UI.q || '').toLowerCase();
     var hist = S.hist.filter(function (h) { return !q || (h.code + ' ' + h.title + ' ' + h.text).toLowerCase().indexOf(q) > -1; });
@@ -1288,7 +1356,7 @@ html.lt-pixel .logo { background: var(--accent); }
       else if (act === 'skipimport') { pendingImport = null; closeModal(); nextImport(); }
     } else if (el.hasAttribute('data-gsrc')) $('modalCard').__genSrc(a('data-gsrc'));
     else if (el.hasAttribute('data-gencreate')) genCreate(a('data-gencreate') === '2');
-    else if (el.hasAttribute('data-person')) { e.preventDefault(); UI.person = a('data-person') === '(no one)' ? '' : a('data-person'); UI.view = 'list'; saveUI(); render(); }
+    else if (el.hasAttribute('data-person')) { e.preventDefault(); UI.person = a('data-person') === '(no one)' ? '' : a('data-person'); if (UI.view !== 'team') UI.view = 'list'; saveUI(); render(); }
     else if (el.hasAttribute('data-calday')) { UI.calOpen = UI.calOpen === a('data-calday') ? '' : a('data-calday'); render(); }
     else if (el.hasAttribute('data-view')) { UI.view = a('data-view'); saveUI(); render(); }
     else if (el.hasAttribute('data-open')) { var id = a('data-open'); UI.open[id] = UI.open[id] === false; saveUI(); render(); }

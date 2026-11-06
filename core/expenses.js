@@ -187,7 +187,13 @@
     '.exp-sum{border-radius:14px;padding:10px 12px;background:color-mix(in srgb,var(--accent) 12%,transparent);display:grid;gap:6px}.exp-sum.over{background:color-mix(in srgb,var(--red,#c62828) 14%,transparent)}' +
     '.exp-total{display:flex;align-items:baseline;gap:10px}.exp-total b{font-size:24px;font-variant-numeric:tabular-nums}.exp-bar{height:8px;border-radius:99px;background:color-mix(in srgb,var(--muted) 25%,transparent);overflow:hidden}.exp-bar i{display:block;height:100%;background:var(--green,#2e7d32)}.exp-sum.over .exp-bar i{background:var(--red,#c62828)}' +
     '.exp-split{line-height:1.6}.exp-acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.exp-acts .grow{flex:1}.exp-prev pre{white-space:pre-wrap;font-size:12.5px;margin:6px 0 0;padding:8px;border-radius:10px;background:var(--panel2,rgba(0,0,0,.05))}' +
-    '@media(max-width:700px){.exp-meta{grid-template-columns:1fr 1fr}.exp-meta .exp-name{grid-column:1/-1}.exp-row{grid-template-columns:18px minmax(0,1fr) 78px 30px}.exp-row .exp-by{grid-column:2/4;max-width:none}.exp-acts .btn{flex:1}.exp-acts .grow{display:none}}';
+    '.exp-meta input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-width:0;width:100%;box-sizing:border-box;min-height:2.6em}.exp-meta select,.exp-meta input{box-sizing:border-box}' +
+    '.exp-acts .btn{white-space:nowrap}' +
+    '@media(max-width:700px){.exp-meta{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.exp-meta .exp-name{grid-column:1/-1}.exp-meta>*{min-width:0}' +
+      '.exp-add{flex-wrap:wrap}.exp-add input{flex:1 1 100%}.exp-add .btn{flex:1}' +
+      '.exp-row{grid-template-columns:18px minmax(0,1fr) 78px 30px}.exp-row .exp-by{grid-column:2/4;max-width:none}' +
+      '.exp-acts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.exp-acts .grow{display:none}' +
+      '.exp-acts .btn{min-width:0;padding:9px 4px;font-size:12px;letter-spacing:0;text-transform:none;overflow:hidden;text-overflow:ellipsis}}';
   document.head.appendChild(css);
   try { if (typeof data !== 'undefined' && data) render(); } catch (e) {}
 })();

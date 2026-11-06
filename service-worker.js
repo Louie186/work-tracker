@@ -5,7 +5,7 @@ const CACHE = 'lews-tracker-v10.46';
 const CORE = [
   './', 'index.html', 'manifest.json',
   'core/app.css', 'core/theme.css', 'core/lt.css',
-  'core/store.js', 'core/store-frame.js', 'core/theme.js', 'core/boot.js', 'core/lt.js', 'core/projects.js', 'core/app.js', 'core/clock.js', 'core/extras.js', 'core/offline.js', 'core/links.js', 'core/todo-link.js', 'core/sync.js',
+  'core/store.js', 'core/store-frame.js', 'core/theme.js', 'core/boot.js', 'core/lt.js', 'core/projects.js', 'core/app.js', 'core/expenses.js', 'core/clock.js', 'core/extras.js', 'core/offline.js', 'core/links.js', 'core/todo-link.js', 'core/sync.js',
   'skills/delegate/delegate.html', 'skills/delegate/planner-excel.js', 'skills/delegate/taskpack.js', 'skills/delegate/xlsm-template.js', 'skills/delegate/templates/checklist-template.xlsm', 'skills/level-filter/level-filter.js', 'skills/weekly-report/weekly-report.js', 'skills/game/tower-stack.js', 'skills/qaqc/qaqc.html', 'skills/midp/midp.html', 'skills/midp/midp-plus.js', 'skills/midp/midp-issues.js', 'skills/midp/midp-folder.js', 'skills/midp/midp-assign.js', 'skills/midp/midp-home.js', 'skills/midp/midp-arr.js', 'skills/midp/midp-stack.js', 'skills/midp/midp-cover.js', 'skills/midp/templates/Model_Arrangement_Template.xlsx',
   'skills/pulse/pulse.js', 'skills/alerts/alerts.js', 'skills/sounds/sounds.js',
   'skills/pet/pet.css', 'skills/pet/pet.js', 'skills/pet/pet-live2d.js',

@@ -963,3 +963,12 @@ body.light .kpi-ring:after,body.pastel .kpi-ring:after,body.melliea .kpi-ring:af
 .heat-cell[data-l="4"]{background:var(--accent)}
 .heat-legend{display:flex;align-items:center;gap:5px;font-size:.66rem;color:var(--muted);margin-top:8px;justify-content:flex-end}
 body.light .heat-cell,body.pastel .heat-cell,body.melliea .heat-cell{background:rgba(0,0,0,.06)}
+
+/* To Do list: compact rows (smaller buttons, less padding, tighter spacing) — every theme */
+#tasks .list{gap:4px}
+#tasks .todo.item{padding:3px 6px 3px 8px;min-height:0;margin-bottom:0;border-radius:9px}
+#tasks .todo.item>.task-main{padding:1px 0}
+#tasks .todo.item .task-num{width:18px;height:18px;font-size:.58rem}
+#tasks .todo.item>.row{gap:3px!important}
+#tasks .todo.item>.row .icon{width:24px;height:24px;min-width:24px;min-height:24px;max-height:24px;font-size:.72rem}
+#tasks .todo.item .pill,#tasks .todo.item .timelog-badge{padding:1px 6px;font-size:.6rem}

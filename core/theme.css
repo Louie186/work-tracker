@@ -223,3 +223,10 @@ html.lt-retro .sidebar, html.lt-retro .mobile { background: var(--panel) !import
 html.lt-retro .nav button { color: var(--ink) !important; opacity: 1 !important; }
 /* the intro tour is always dark: keep its text light in light themes */
 html[data-lt-mode="light"] .intro { color: #f4efe6; }
+
+/* 8-bit: the To Do list stays compact too (thinner edge and shadow on the small row buttons) */
+html.lt-pixel #tasks .todo.item, html.lt-retro #tasks .todo.item { padding: 3px 6px 3px 8px !important; }
+html.lt-pixel #tasks .todo.item > .row .icon, html.lt-retro #tasks .todo.item > .row .icon {
+  width: 24px !important; height: 24px !important; min-width: 24px !important; min-height: 24px !important; max-height: 24px !important;
+  border-width: 2px !important; box-shadow: 2px 2px 0 var(--edge) !important; font-size: 10px !important; padding: 0 !important;
+}

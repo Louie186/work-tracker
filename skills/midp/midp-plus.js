@@ -17,7 +17,7 @@ window.MIDP_PLUS = function (A) {
   'use strict';
   var S = A.S, T = A.T, esc = A.esc;
   var LKEY = 'tidp-checker:lists', UKEY = 'tidp-checker:lookup', IKEY = 'tidp-checker:index';
-  var GROUPS = { lookup: ['lookup', 'logic', 'ttm', 'stack', 'models', 'lists'], overview: ['overview', 'cover'], changes: ['changes'], subs: ['subs', 'chase'], sets: ['folder'], files: ['files', 'arr'], more: ['tracker', 'checks', 'cats', 'pre'] };
+  var GROUPS = { lookup: ['lookup', 'logic', 'ttm', 'stack', 'models', 'lists'], overview: ['overview', 'cover'], changes: ['changes'], subs: ['subs', 'chase'], sets: ['folder'], files: ['files', 'arr', 'find'], more: ['tracker', 'checks', 'cats', 'pre'] };
   var CODES = { T1: 'Tower 1', T2: 'Tower 2', T3: 'Tower 3', T4: 'Tower 4', PD: 'Podium', XX: 'General', ZZ: 'Several buildings' };
   var P = Object.assign({ q: '', chip: '', open: '', last: {}, f: {}, recent: [], pins: ['t1models', 'sv', 'late', 'nomodel'], vm: 'list', ttm: '' }, A.readJSON(UKEY, {}));
   P.f = P.f || {}; P.recent = P.recent || [];

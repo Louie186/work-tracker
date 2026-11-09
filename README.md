@@ -8,12 +8,32 @@ Live site: https://louie186.github.io/work-tracker/
 - **`core/` — the motherboard.** You rarely touch it.
   - `app.js` / `app.css` — the tracker itself (Dashboard, To Do, Focus, Calendar, Notes, Finance, Settings)
   - `lt.js` — plugs the skills in (menu, ⚡ Skills launcher, Settings → Skills)
-  - `theme.js` + `theme.css` — **one theme for every tab** (Gold, Pastel, Rose, 8-bit Game Boy, 8-bit Arcade · dark / light)
+  - `theme.js` + `theme.css` — **one theme for every tab** (Gold, Pastel, Rose, 8-bit Game Boy, 8-bit Arcade, Slate · dark / light)
   - `projects.js` — 📁 switch between projects
   - `sync.js` — encrypted cloud backup (GitHub Gist)
 - **`skills/` — the upgrade pieces.** One folder per skill.
 - **`lib/`** — Excel and PDF libraries, so those features work offline.
 - **`img/`** — pet artwork (only loaded when the pet is opened).
+
+## Slate look (new)
+
+- **Settings → Theme → ◧ Slate** — clean, flat dashboard look (dark or light)
+  - Solid dark panels, one steel-blue colour, rounded cards, pill buttons
+  - The first dashboard card (Open To Do) is the filled "hero" card
+  - Active menu item shows a thin blue bar on the left
+- **Fold the menu** — click **▯** next to the title (or press **[**)
+  - The menu slides down to icons only; point at an icon to see its name
+  - Remembered on this computer. Works with every theme
+- **This week** chart on the Dashboard — tasks finished each day, Mon–Sun
+  - Today is the solid bar, other days are striped
+- **Drag and drop** (every move has **Undo** on the message):
+  - **Calendar:** drag a task from the day list onto another day to change its date
+    - Or drag a day's number badge to move all its open tasks at once
+  - **Delegation → Calendar:** drag a task to another day
+    - Bold chip = the task's due date. ↳ chip = only its items due that day
+    - Every move is written in the task's history
+  - **Boards** (To Do and Delegation): drag a card to change its status
+- Code: `core/slate.js` (menu fold + chart), colours in `core/theme.css` (section 4)
 
 ## The skills
 

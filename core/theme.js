@@ -8,7 +8,8 @@
    • The colours live in core/theme.css (one block per skin).
    Skins:  gold (default) · pastel · rose · gb (8-bit Game Boy) · arc (8-bit Arcade)
            rc (Retro Console, dark) · pp (Pixel Paper, light) · a16 (16-bit Arcade, dark)
-           — the last three are "readable 8-bit": pixel font only on titles, main tabs
+           slate (clean flat dashboard, dark / light)
+           — rc, pp and a16 are "readable 8-bit": pixel font only on titles, main tabs
              and big numbers (class lt-retro), everything else plain.
    Modes:  dark · light   (pastel and rose are always light)
    ═══════════════════════════════════════════════════════════════════ */
@@ -23,7 +24,8 @@
     arc:    { name: '8-bit Arcade',      swatch: ['#ff3d7f', '#0e0b1c'], pixel: true,  modes: true },
     rc:     { name: '🎮 Retro Console',   swatch: ['#e4473b', '#16171d'], pixel: false, retro: true, modes: false, fixed: 'dark' },
     pp:     { name: '📜 Pixel Paper',     swatch: ['#d9822b', '#f6f0e1'], pixel: false, retro: true, modes: false, fixed: 'light' },
-    a16:    { name: '🕹 16-bit Arcade',    swatch: ['#ff4fa3', '#141228'], pixel: false, retro: true, modes: false, fixed: 'dark' }
+    a16:    { name: '🕹 16-bit Arcade',    swatch: ['#ff4fa3', '#141228'], pixel: false, retro: true, modes: false, fixed: 'dark' },
+    slate:  { name: '◧ Slate',            swatch: ['#3f86a8', '#080b0f'], pixel: false, modes: true }
   };
   var DEFAULT = { skin: 'gold', mode: 'dark', auto: false, sound: true };
   var listeners = [];

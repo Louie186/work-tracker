@@ -213,7 +213,7 @@
   /* ---------- Settings → Theme + keep the tracker's own classes in step ---------- */
   function syncTrackerClasses(e) {
     var b = document.body; if (!b) return;
-    b.classList.toggle('light', e.mode === 'light' && (e.skin === 'gold' || e.pixel));
+    b.classList.toggle('light', e.mode === 'light' && (e.skin === 'gold' || e.skin === 'slate' || e.pixel));
     b.classList.toggle('pastel', e.skin === 'pastel');
     b.classList.toggle('melliea', e.skin === 'rose');
     if (e.skin === 'rose') { if (typeof startFloatingHearts === 'function') try { startFloatingHearts(); } catch (x) {} }

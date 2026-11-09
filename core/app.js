@@ -654,7 +654,7 @@ function renderBoard(list){const cols=['todo','progress','waiting','done'];taskA
 function boardDrag(e,id){e.dataTransfer.setData('text/plain',id)}
 function boardOver(e){e.preventDefault();e.currentTarget.classList.add('dragover')}
 function boardLeave(e){e.currentTarget.classList.remove('dragover')}
-function boardDrop(e,status){e.preventDefault();e.currentTarget.classList.remove('dragover');let id=Number(e.dataTransfer.getData('text/plain')),t=data.tasks.find(x=>x.id===id);if(t){ensure(t).status=status;save();renderAll();toastMsg('Moved to '+statusName(status))}}
+function boardDrop(e,status){e.preventDefault();e.currentTarget.classList.remove('dragover');let id=Number(e.dataTransfer.getData('text/plain')),t=data.tasks.find(x=>x.id===id);if(t){const was=ensure(t).status;if(was===status)return;t.status=status;save();renderAll();toastUndo('Moved to '+statusName(status),()=>{t.status=was;save();renderAll()})}}
 function toggleMode(){data.settings.mode=data.settings.mode==='board'?'list':'board';save();renderTasks()}
 ['taskSearch','taskFilter'].forEach(id=>setTimeout(()=>document.getElementById(id)?.addEventListener('input',renderTasks),0));
 
@@ -670,7 +670,18 @@ function due(k){return data.tasks.map(ensure).filter(t=>t.due===k)}
 function addCalendarTask(title,k=selected){if(!title)return;createTask({title,priority:'medium',status:'todo',due:k,tags:['Calendar'],source:'calendar'});selected=k;toastMsg('Calendar task added')}
 function addEvent(){const el=document.getElementById('eventInput');let v=(el?.value||'').trim();if(!v)return;if(el)el.value='';addCalendarTask(v,selected);save();renderAll()}
 function moveMonth(n){current.setMonth(current.getMonth()+n);renderCalendar()}
-function calendarTaskMarker(k){const items=due(k);if(!items.length)return '';const open=items.filter(t=>ensure(t).status!=='done').length;const label=open?open:items.length;const title=items.length+' task(s) on this day';return `<span class="cal-task-marker" title="${title}">${label}</span>`;}
+function calendarTaskMarker(k){const items=due(k);if(!items.length)return '';const open=items.filter(t=>ensure(t).status!=='done').length;const label=open?open:items.length;const title=items.length+' task(s) on this day';return `<span class="cal-task-marker" draggable="true" ondragstart="calDragDay(event,'${k}')" title="${title} — drag to another day to move the open ones">${label}</span>`;}
+// Calendar drag & drop: drag a task from the day list (or a day's marker = its open tasks) onto another day
+let calDragIds=null;
+function calDrag(e,id){calDragIds=[id];e.dataTransfer.setData('text/plain','cal:'+id);e.dataTransfer.effectAllowed='move'}
+function calDragDay(e,k){e.stopPropagation();calDragIds=due(k).filter(t=>ensure(t).status!=='done').map(t=>t.id);if(!calDragIds.length){e.preventDefault();return}e.dataTransfer.setData('text/plain','cal:'+k);e.dataTransfer.effectAllowed='move'}
+function calOver(e){if(!calDragIds)return;e.preventDefault();e.currentTarget.classList.add('dragover')}
+function calLeave(e){e.currentTarget.classList.remove('dragover')}
+function calDrop(e,k){e.preventDefault();e.currentTarget.classList.remove('dragover');const ids=calDragIds;calDragIds=null;if(!ids)return;
+  const moved=ids.map(id=>data.tasks.find(x=>x.id===id)).filter(t=>t&&t.due!==k).map(t=>({t,was:t.due}));if(!moved.length)return;
+  moved.forEach(m=>m.t.due=k);selected=k;save();renderAll();
+  toastUndo((moved.length===1?'“'+esc(moved[0].t.title)+'”':moved.length+' tasks')+' moved to '+k,()=>{moved.forEach(m=>m.t.due=m.was);save();renderAll()})}
+document.addEventListener('dragend',()=>{calDragIds=null;document.querySelectorAll('#calendarGrid .day.dragover').forEach(d=>d.classList.remove('dragover'))});
 function renderCalendar(){
   if(!calendarGrid)return;
   calendarGrid.innerHTML='';
@@ -682,10 +693,10 @@ function renderCalendar(){
     let d=new Date(start);
     d.setDate(start.getDate()+i);
     let k=dateKey(d);
-    calendarGrid.innerHTML+=`<div class="day ${d.getMonth()!==m?'muted':''} ${k===today()?'today':''} ${k===selected?'selected':''}" onclick="selected='${k}';renderAll()"><b>${d.getDate()}</b>${calendarTaskMarker(k)}</div>`;
+    calendarGrid.innerHTML+=`<div class="day ${d.getMonth()!==m?'muted':''} ${k===today()?'today':''} ${k===selected?'selected':''}" onclick="selected='${k}';renderAll()" ondragover="calOver(event)" ondragleave="calLeave(event)" ondrop="calDrop(event,'${k}')"><b>${d.getDate()}</b>${calendarTaskMarker(k)}</div>`;
   }
 }
-function renderDay(){if(!dayList)return;selectedTitle.textContent='Tasks for '+selected;let arr=due(selected).map(t=>`<div class="item pri-${t.priority}"><div class="todo-text"><b>Task:</b> ${esc(t.title)}</div><button class="btn" onclick="show('tasks');openTaskId=${t.id};renderTasks()">Open</button></div>`);dayList.innerHTML=arr.join('')||'<div class="empty"><span class="e-ic">✅</span>Nothing due this day.</div>'}
+function renderDay(){if(!dayList)return;selectedTitle.textContent='Tasks for '+selected;let arr=due(selected).map(t=>`<div class="item pri-${t.priority}" draggable="true" ondragstart="calDrag(event,${t.id})" title="Drag onto a day to move it" style="cursor:grab"><div class="todo-text"><b>Task:</b> ${esc(t.title)}</div><button class="btn" onclick="show('tasks');openTaskId=${t.id};renderTasks()">Open</button></div>`);dayList.innerHTML=arr.join('')||'<div class="empty"><span class="e-ic">✅</span>Nothing due this day.</div>'}
 
 // ── Notes ─────────────────────────────────────────────────────────────────────
 function renderNoteTaskOptions(){if(!noteTask)return;noteTask.innerHTML='<option value="">No linked task</option>'+data.tasks.map(ensure).slice(0,200).map(t=>`<option value="${t.id}">${esc(t.title)}</option>`).join('')}
@@ -776,7 +787,7 @@ function dashboard(){const active=data.tasks.map(ensure).filter(t=>t.status!=='d
 
 function renderInsights(){let tasks=data.tasks.map(ensure),open=tasks.filter(t=>t.status!=='done').length,done=tasks.filter(t=>t.status==='done').length,over=tasks.filter(t=>t.status!=='done'&&t.due<today()).length,todayCnt=tasks.filter(t=>t.status!=='done'&&t.due===today()).length,total=tasks.length,pct=total?Math.round(done/total*100):0;let health=over>0?'Attention needed':todayCnt>2?'Heavy today':open>0?'In progress':'Clear';insightHero.innerHTML=`<div class="label">Workload Health</div><div class="insight-big">${health}</div><div class="barline"><span style="width:${pct}%"></span></div><div class="small">${pct}% complete · ${open} open · ${over} overdue</div>`;insightCards.innerHTML=`<div class="item"><b>${open}</b><span class="small">open</span></div><div class="item"><b>${done}</b><span class="small">done</span></div><div class="item"><b>${paidPendingCount()}</b><span class="small">unpaid</span></div>`;duePressure.innerHTML=`<div class="item"><span>Today</span><span class="pill today">${todayCnt}</span></div><div class="barline"><span style="width:${Math.min(100,todayCnt*18)}%"></span></div><div class="item"><span>Overdue</span><span class="pill overdue">${over}</span></div><div class="barline"><span style="width:${Math.min(100,over*18)}%"></span></div>`;let next=over?tasks.find(t=>t.status!=='done'&&t.due<today()):tasks.find(t=>t.status!=='done'&&t.due===today())||tasks.find(t=>t.status!=='done');nextAction.innerHTML=next?`<div class="item"><div><b>${esc(next.title)}</b><div class="small">${next.due||'No date'} · ${next.priority}</div></div><button class="btn" onclick="show('tasks');openTaskId=${next.id};renderTasks()">Open</button></div>`:'<div class="empty">No active task.</div>'}
 function focus(){let list=data.tasks.map(ensure).filter(t=>t.status!=='done'&&(t.due<=today()||!t.due)).slice(0,3);focusTop.innerHTML=list.map((t,i)=>taskRow(t,i)).join('')||'<div class="empty">No focus items.</div>'}
-function stats(){let tasks=data.tasks.map(ensure),active=tasks.filter(t=>t.status!=='done'),overdue=tasks.filter(t=>t.status!=='done'&&t.due<today());countUp(kOpen,active.length);countUp(kOverdue,overdue.length);const todayAll=due(today()),todayDone=todayAll.filter(t=>t.status==='done').length;countUp(kToday,todayAll.length-todayDone);countUp(kPendingPay,paidPendingCount());todayTxt.textContent=new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});const totalExpense=data.budgets.reduce((a,b)=>a+b.categories.filter(c=>c.type!=='income').length,0),pendingPay=paidPendingCount();updateKpiRings(tasks.length?Math.round(active.length/tasks.length*100):0,active.length?Math.round(overdue.length/active.length*100):0,todayAll.length?Math.round(todayDone/todayAll.length*100):100,totalExpense?Math.round(pendingPay/totalExpense*100):0);if(todayAll.length&&todayDone===todayAll.length)celebrateIfNeeded();renderActivityHeatmap()}
+function stats(){let tasks=data.tasks.map(ensure),active=tasks.filter(t=>t.status!=='done'),overdue=tasks.filter(t=>t.status!=='done'&&t.due<today());countUp(kOpen,active.length);countUp(kOverdue,overdue.length);const todayAll=due(today()),todayDone=todayAll.filter(t=>t.status==='done').length;countUp(kToday,todayAll.length-todayDone);countUp(kPendingPay,paidPendingCount());todayTxt.textContent=new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});const totalExpense=data.budgets.reduce((a,b)=>a+b.categories.filter(c=>c.type!=='income').length,0),pendingPay=paidPendingCount();updateKpiRings(tasks.length?Math.round(active.length/tasks.length*100):0,active.length?Math.round(overdue.length/active.length*100):0,todayAll.length?Math.round(todayDone/todayAll.length*100):100,totalExpense?Math.round(pendingPay/totalExpense*100):0);if(todayAll.length&&todayDone===todayAll.length)celebrateIfNeeded();renderActivityHeatmap();if(window.LTSlate)LTSlate.renderWeek()}
 
 // ── v9.3: KPI rings, celebration confetti, activity heatmap ───────────────────
 function updateKpiRings(pOpen,pOverdue,pToday,pPending){

@@ -14,10 +14,10 @@ window.MIDP_FIND = function (A) {
   'use strict';
   var S = A.S, T = A.T, esc = A.esc;
   var KEY = 'tidp-checker:finder';
-  var UI = Object.assign({ text: '', f: '' }, A.readJSON(KEY, {}));
+  var UI = Object.assign({ text: '', f: '', v: 'files' }, A.readJSON(KEY, {}));
   var FD = { root: null, name: '', files: 0, at: 0, busy: false, need: false, ix: new Map(), handles: new Map() };
   var canPick = typeof window.showDirectoryPicker === 'function';
-  function save() { A.writeJSON(KEY, { text: UI.text, f: UI.f }); }
+  function save() { A.writeJSON(KEY, { text: UI.text, f: UI.f, v: UI.v }); }
   function U(s) { return String(s == null ? '' : s).toUpperCase(); }
   function base(num) { var n = U(num).trim().replace(/-+$/, ''); var b = T.baseOf ? T.baseOf(n) : n; return U(b || n).replace(/-+$/, ''); }
   function revOf(num) { var n = U(num).trim().replace(/-+$/, ''), b = base(n); return n.length > b.length ? n.slice(b.length + 1) : ''; }
@@ -108,6 +108,42 @@ window.MIDP_FIND = function (A) {
     return out;
   }
 
+  /* revision order: no rev < P1… < T1… < 00, 01… (issued for construction) */
+  function rank(rv) {
+    rv = U(rv); if (!rv) return -1;
+    var m = /^([A-Z]*)(\d+)$/.exec(rv); if (!m) return 0;
+    var n = Number(m[2]); if (!m[1]) return 9000 + n;
+    return 1000 + (m[1].charCodeAt(0) - 64) * 100 + n;
+  }
+  function sorted(x) {     // newest revision first, then folder
+    var top = x.hits.reduce(function (a, h) { return Math.max(a, rank(h.rev)); }, -2);
+    return { top: top, list: x.hits.slice().sort(function (a, b) { return rank(b.rev) - rank(a.rev) || a.path.localeCompare(b.path) || a.ext.localeCompare(b.ext); }) };
+  }
+  function loc(p) { return p ? p.replace(/\/$/, '').replace(/\//g, '\\') : '(top of ' + FD.name + ')'; }
+  function tt(x) { return x.t ? [x.t.tower, x.t.typ].filter(Boolean).join(' / ') + (x.t.model || x.t.sugg ? ' · ' + (x.t.model || x.t.sugg + ' ?') : '') : ''; }
+  function fileTable(rows) {
+    if (!rows.length) return '<div class="box empty">Nothing here.</div>';
+    var b = '';
+    rows.forEach(function (x) {
+      var s = sorted(x), n = Math.max(1, s.list.length);
+      var head = '<td rowspan="' + n + '" class="fn-d"><div class="mono fn-num">' + (x.r ? A.numLink(x.base, x.r.key) : esc(x.base)) + '</div>' +
+        (x.r ? '<div class="hint fn-desc" title="' + esc(x.r.title) + '">' + esc(x.r.title) + '</div>' + (x.r.rev ? '<div class="hint">MIDP rev <b>' + esc(x.r.rev) + '</b></div>' : '') : '<span class="tag c-warn">Not in the MIDP</span>') +
+        (x.near.length ? '<div class="hint fn-near">did you mean ' + x.near.map(esc).join(', ') + '?</div>' : '') + '</td>';
+      var ttc = '<td rowspan="' + n + '" class="fn-tt">' + (esc(tt(x)) || '<span class="muted">—</span>') + (x.t && x.t.guess ? ' <span class="tag c-warn" title="Guessed — confirm it">?</span>' : '') + '</td>';
+      if (!s.list.length) { b += '<tr class="fn-g">' + head + '<td colspan="4"><span class="tag c-bad">✗ not found in the folder</span></td>' + ttc + '</tr>'; return; }
+      s.list.forEach(function (h, i) {
+        var late = rank(h.rev) === s.top;
+        b += '<tr' + (i === 0 ? ' class="fn-g"' : '') + '>' + (i === 0 ? head : '') +
+          '<td class="fn-rev"><b>' + (h.rev ? esc(h.rev) : '-') + '</b>' + (late && h.rev ? ' <span class="fn-late">latest</span>' : '') + '</td>' +
+          '<td><span class="fn-ext">' + esc(h.ext || 'file') + '</span></td>' +
+          '<td class="fn-loc" title="' + esc(loc(h.path)) + '">' + esc(loc(h.path)) + '</td>' +
+          '<td><button class="fn-name" type="button" data-act="fnopen" data-v="' + esc(h.path + h.name) + '" title="Open a copy (read-only)">' + esc(h.name) + '</button></td>' +
+          (i === 0 ? ttc : '') + '</tr>';
+      });
+    });
+    return '<div class="fn-wrap"><table class="fn-t"><thead><tr><th>Drawing</th><th>Rev</th><th>Type</th><th>Location (folder)</th><th>File name</th><th>Tower / Typology</th></tr></thead><tbody>' + b + '</tbody></table></div>';
+  }
+
   /* ---------- the tab ---------- */
   A.VIEWS.find = function () {
     var h = '<div class="box fn-top"><div class="toolbar" style="margin:0;flex-wrap:wrap">' +
@@ -124,7 +160,9 @@ window.MIDP_FIND = function (A) {
     var shown = rows.filter(function (x) { return f === 'yes' ? x.hits.length : f === 'no' ? !x.hits.length : f === 'many' ? x.nPaths > 1 : f === 'nomidp' ? !x.r : true; });
     h += '<div class="toolbar"><div class="chips">' + [['', 'All', c.all], ['yes', '✅ Found', c.yes], ['no', '❌ Not in the folder', c.no], ['many', '📂 In more than one folder', c.many], ['nomidp', 'Not in the MIDP', c.nomidp]].map(function (k) {
       return '<button class="chip" type="button" data-act="fnf" data-v="' + k[0] + '" aria-pressed="' + (f === k[0]) + '">' + k[1] + '<span class="c">' + k[2] + '</span></button>'; }).join('') + '</div>' +
-      '<span class="grow"></span><button class="btn small" type="button" data-act="fncopy" title="Number, folder, files — paste in Excel or an email">📋 Copy results</button></div>';
+      '<span class="grow"></span><div class="seg">' + [['files', '📄 By file'], ['sum', '▤ Summary']].map(function (k) { return '<button class="chip" type="button" data-act="fnv" data-v="' + k[0] + '" aria-pressed="' + (UI.v === k[0]) + '">' + k[1] + '</button>'; }).join('') + '</div>' +
+      '<button class="btn small" type="button" data-act="fncopy" title="Number, folder, files — paste in Excel or an email">📋 Copy results</button></div>';
+    if (UI.v !== 'sum') return h + fileTable(shown);
     var cols = [
       { k: 'idx', label: '#', w: 44, cls: 'num', text: function (x) { return String(x.idx); }, sortKey: function (x) { return x.idx; } },
       { k: 'num', label: 'Drawing number', w: 250, stick: true, cls: 'mono', text: function (x) { return x.base; }, html: function (x) { return (x.r ? A.numLink(x.base, x.r.key) : esc(x.base)) + (x.near.length ? '<div class="hint fn-near">did you mean ' + x.near.map(esc).join(', ') + '?</div>' : ''); } },
@@ -145,17 +183,21 @@ window.MIDP_FIND = function (A) {
   Object.assign(A.ACTIONS, {
     fnpick: choose, fnre: reconnect,
     fnscan: function () { if (FD.root) scan(FD.root); },
+    fnv: function (el) { UI.v = el.getAttribute('data-v'); save(); A.render(); },
     fnf: function (el) { UI.f = el.getAttribute('data-v'); save(); A.render(); },
     fnopen: function (el) {         // a copy of the file in a new tab — the folder is not touched
       var h = FD.handles.get(el.getAttribute('data-v')); if (!h) return;
       h.getFile().then(function (file) { var u = URL.createObjectURL(file); window.open(u, '_blank'); setTimeout(function () { URL.revokeObjectURL(u); }, 60000); }).catch(function (e) { A.toast('Could not open: ' + e.message); });
     },
     fncopy: function () {
-      var rows = results(), t = ['Drawing number\tFound\tFolder\tFiles\tRev in folder\tDescription\tTower\tTypology\tModel'].concat(rows.map(function (x) {
-        return [x.base, x.hits.length ? 'Yes' : 'No', Object.keys(x.paths).map(function (p) { return (FD.name + '/' + p).replace(/\/$/, ''); }).join(' | '), x.hits.map(function (h) { return h.name; }).join(' | '), Object.keys(x.revs).join(', '),
-          x.r ? x.r.title : 'Not in the MIDP', x.t ? x.t.tower : '', x.t ? x.t.typ : '', x.t ? x.t.model || x.t.sugg : ''].join('\t');
-      })).join('\n');
-      (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { A.toast('📋 ' + rows.length + ' lines copied — paste in Excel or an email'); }, function () { A.toast('Copy blocked — use Export this view'); });
+      var rows = results(), t = ['Drawing\tRev\tType\tLocation (folder)\tFile name\tTower\tTypology\tModel\tDescription'];
+      rows.forEach(function (x) {
+        var tail = [x.t ? x.t.tower : '', x.t ? x.t.typ : '', x.t ? x.t.model || x.t.sugg : '', x.r ? x.r.title : 'Not in the MIDP'];
+        var l = sorted(x).list; if (!l.length) t.push([x.base, '', '', 'NOT FOUND', ''].concat(tail).join('\t'));
+        l.forEach(function (h) { t.push([x.base, h.rev || '-', h.ext, loc(h.path), h.name].concat(tail).join('\t')); });
+      });
+      t = t.join('\n');
+      (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { A.toast('📋 ' + rows.length + ' drawings copied — paste in Excel or an email'); }, function () { A.toast('Copy blocked — use Export this view'); });
     }
   });
   var tT = null;
@@ -167,7 +209,7 @@ window.MIDP_FIND = function (A) {
 
   var css = document.createElement('style');
   css.textContent = '.fn-top{padding:10px 12px;margin-bottom:10px;display:grid;gap:8px}.fn-top textarea{width:100%;font:12.5px/1.45 var(--mono,monospace)}' +
-    '.fn-fs{display:flex;flex-wrap:wrap;gap:3px;white-space:normal}.fn-near{white-space:normal;word-break:break-all}.fn-p{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fn-f{font:inherit;font-size:11px;font-weight:700;padding:1px 7px;border:1px solid var(--edge);background:var(--panel);color:var(--ink);cursor:pointer;border-radius:99px;margin:1px 0}.fn-f:hover{border-color:var(--info)}';
+    '.fn-wrap{overflow-x:auto;border:1px solid var(--edge);border-radius:10px}.fn-t{width:100%;border-collapse:collapse;font-size:12.5px}.fn-t th{text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:7px 10px;border-bottom:1px solid var(--edge);white-space:nowrap}.fn-t td{padding:5px 10px;border-top:1px solid var(--line,var(--edge));vertical-align:top}.fn-t tr.fn-g td{border-top:2px solid var(--edge)}.fn-d{min-width:230px;max-width:300px}.fn-num{font-weight:700;white-space:nowrap}.fn-desc{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:11px}.fn-rev{white-space:nowrap}.fn-late{color:var(--ok);font-size:11.5px}.fn-ext{display:inline-block;font-size:10.5px;font-weight:700;padding:0 6px;border-radius:4px;background:var(--panel2,var(--edge));color:var(--ink)}.fn-loc{font-family:var(--mono,monospace);font-size:11.5px;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fn-name{font:inherit;border:0;background:none;color:var(--info);padding:0;cursor:pointer;text-align:left;white-space:nowrap}.fn-name:hover{text-decoration:underline}.fn-tt{white-space:nowrap}.fn-fs{display:flex;flex-wrap:wrap;gap:3px;white-space:normal}.fn-near{white-space:normal;word-break:break-all}.fn-p{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fn-f{font:inherit;font-size:11px;font-weight:700;padding:1px 7px;border:1px solid var(--edge);background:var(--panel);color:var(--ink);cursor:pointer;border-radius:99px;margin:1px 0}.fn-f:hover{border-color:var(--info)}';
   document.head.appendChild(css);
   boot();
 };

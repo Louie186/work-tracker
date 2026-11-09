@@ -507,7 +507,7 @@ body.row-minimal .todo.item{background:transparent;border-top:none;border-right:
 .qaqc-ghead{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;user-select:none;background:color-mix(in srgb,var(--accent) 9%,transparent)}
 .qaqc-ghead:hover{background:color-mix(in srgb,var(--accent) 14%,transparent)}
 .qaqc-chev{font-size:.7rem;color:var(--accent);width:12px;flex:0 0 auto}
-.qaqc-chip{font-size:.58rem;font-weight:900;letter-spacing:.06em;background:var(--accent);color:#1a1408;padding:2px 7px;border-radius:6px;flex:0 0 auto}
+.qaqc-chip{font-size:.58rem;font-weight:900;letter-spacing:.06em;background:var(--accent);color:var(--accent-ink,#1a1408);padding:2px 7px;border-radius:6px;flex:0 0 auto}
 .qaqc-gtitle{font-weight:800;font-size:.82rem;color:var(--ink);flex:0 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .qaqc-gmeta{font-size:.64rem;color:var(--muted);margin-left:auto;flex:0 0 auto;text-align:right}
 .qaqc-tasks{padding:6px;display:flex;flex-direction:column;gap:5px}

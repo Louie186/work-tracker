@@ -505,6 +505,36 @@ window.MIDP_PLUS = function (A) {
     { id: 'nomodel', name: 'No model yet', q: 'no model', d: 'Drawings without an assigned or suggested model' },
     { id: 'sugg', name: 'Suggested models to confirm', q: 'suggested', d: 'A model is only suggested — confirm it' }
   ];
+  /* your changes to the searches (✎ Edit / ➕ New / Hide) — per project; the pack above stays as the original */
+  var RKEY = 'tidp-checker:recipes', RC = Object.assign({ edits: {}, hidden: [], own: [] }, A.readJSON(RKEY, {}));
+  function saveRC() { A.writeJSON(RKEY, RC); }
+  function baseOf(id) { return RECIPES.find(function (x) { return x.id === id; }); }
+  function recipes(all) {
+    return RECIPES.map(function (x) { var e = RC.edits[x.id]; return e ? Object.assign({}, x, e, { edited: true }) : x; })
+      .filter(function (x) { return all || RC.hidden.indexOf(x.id) < 0; })
+      .concat(RC.own.map(function (x) { return Object.assign({ mine: true }, x); }));
+  }
+  function recipe(id) { return recipes(true).find(function (x) { return x.id === id; }); }
+  function rcDialog(id, v) {
+    var x = id ? recipe(id) : null; v = v || { name: x ? x.name : '', q: x ? x.q : '', d: x ? x.d || '' : '', pin: id ? P.pins.indexOf(id) > -1 : true };
+    var orig = id && baseOf(id);
+    A.openDialog('<h2 id="dlgH">' + (x ? '✎ Edit search' : '➕ New search') + '</h2>' +
+      '<p class="hint" style="margin-top:0">Write the words just like in the Lookup box — see “🔤 Words the search understands” on this page.</p>' +
+      '<label class="rc-f">Name<input id="rcName" value="' + esc(v.name) + '" placeholder="e.g. Tower 2 serviced, late"></label>' +
+      '<label class="rc-f">Words<input id="rcQ" class="mono" value="' + esc(v.q) + '" placeholder="e.g. T2 serviced late"></label>' +
+      '<div class="hint">' + (v.q.trim() ? 'Now finds: <b>' + esc(count(v.q)) + '</b>' : '') + '</div>' +
+      '<label class="rc-f">Description<input id="rcD" value="' + esc(v.d) + '" placeholder="optional"></label>' +
+      '<label class="hint"><input type="checkbox" id="rcPin"' + (v.pin ? ' checked' : '') + '> 📌 Pin it on the Lookup start screen</label>' +
+      (orig && x.edited ? '<p class="hint">Original: <b>' + esc(orig.name) + '</b> · <span class="mono">' + esc(orig.q) + '</span></p>' : '') +
+      '<div class="acts">' +
+      (x && x.mine ? '<button class="btn" type="button" data-act="rcdel" data-v="' + esc(id) + '">🗑 Delete</button>' : '') +
+      (orig ? '<button class="btn" type="button" data-act="rchide" data-v="' + esc(id) + '">🙈 Hide</button>' : '') +
+      (orig && x.edited ? '<button class="btn" type="button" data-act="rcreset" data-v="' + esc(id) + '">↺ Original</button>' : '') +
+      '<button class="btn" type="button" data-act="rctest" data-v="' + esc(id || '') + '">✓ Test</button><button class="btn" type="button" data-act="dlgclose">Cancel</button>' +
+      '<button class="btn primary" type="button" data-act="rcsave" data-v="' + esc(id || '') + '">Save</button></div>');
+  }
+  function rcVals() { return { name: document.getElementById('rcName').value.trim(), q: document.getElementById('rcQ').value.trim(), d: document.getElementById('rcD').value.trim(), pin: document.getElementById('rcPin').checked }; }
+  function setPin(id, on) { var i = P.pins.indexOf(id); if (on && i < 0) P.pins.push(id); if (!on && i > -1) P.pins.splice(i, 1); saveUI(); }
   var WORD_HELP = [
     ['Tower / building', 'T1 · Tower 2 · Res 2 · PD', 'Drawings of that building (from the number)'],
     ['Level', 'L3 · Level 12 · GF · RF · B1', 'That level (from the number, the title, or the units placed on it in the Model arrangement)'],
@@ -540,12 +570,13 @@ window.MIDP_PLUS = function (A) {
     var row = function (x, own) {
       var pin = P.pins.indexOf(x.id) > -1;
       var dd = x.id === 'sv' && SV.list.length ? 'Your list: ' + A.plural(SV.list.length, 'unit type') + (SV.b ? ' in ' + bldName(SV.b) : '') : x.d || '';
-      return '<tr><td><b>' + esc(x.name) + '</b><div class="hint">' + esc(dd) + '</div></td><td class="mono">' + esc(x.q) + '</td><td>' + esc(count(x.q)) + '</td>' +
+      return '<tr><td><b>' + esc(x.name) + '</b>' + (x.mine ? ' <span class="tag c-ok">yours</span>' : x.edited ? ' <span class="tag c-warn">edited</span>' : '') + '<div class="hint">' + esc(dd) + '</div></td><td class="mono">' + esc(x.q) + '</td><td>' + esc(count(x.q)) + '</td>' +
         '<td class="lg-acts"><button class="btn small primary" type="button" data-act="lgrun" data-v="' + esc(x.q) + '">Run</button>' +
-        (own ? '' : '<button class="btn small" type="button" data-act="lgpin" data-v="' + esc(x.id) + '" title="Show it on the Lookup start screen">' + (pin ? '📌 Pinned' : 'Pin') + '</button>') + (x.id === 'sv' ? '<button class="btn small" type="button" data-act="svedit" title="Choose exactly which unit types are serviced">✎ Edit list</button>' : '') + '</td></tr>';
+        (own ? '' : '<button class="btn small" type="button" data-act="lgpin" data-v="' + esc(x.id) + '" title="Show it on the Lookup start screen">' + (pin ? '📌 Pinned' : 'Pin') + '</button>') + (own ? '' : '<button class="btn small" type="button" data-act="rcedit" data-v="' + esc(x.id) + '" title="Change the name, words or description">✎</button>') + (x.id === 'sv' ? '<button class="btn small" type="button" data-act="svedit" title="Choose exactly which unit types are serviced">✎ Edit list</button>' : '') + '</td></tr>';
     };
-    return '<div class="lg"><div class="box lg-box"><div class="sec-h"><h2>🧩 Ready-made searches</h2><span class="hint">Search pack ' + PACK + ' · each one is just words you could type yourself</span></div>' +
-      '<table class="lg-t"><thead><tr><th>Search</th><th>Words</th><th>Now</th><th></th></tr></thead><tbody>' + RECIPES.map(function (x) { return row(x); }).join('') + '</tbody></table></div>' +
+    return '<div class="lg"><div class="box lg-box"><div class="sec-h"><h2>🧩 Ready-made searches</h2><span class="hint">Search pack ' + PACK + ' · each one is just words you could type yourself</span><span class="grow"></span><button class="btn small primary" type="button" data-act="rcnew">➕ New search</button></div>' +
+      '<table class="lg-t"><thead><tr><th>Search</th><th>Words</th><th>Now</th><th></th></tr></thead><tbody>' + recipes().map(function (x) { return row(x); }).join('') + '</tbody></table>' +
+      (RC.hidden.length ? '<p class="hint">' + A.plural(RC.hidden.length, 'hidden search') + ' <button class="btn small" type="button" data-act="rcunhide">Show them again</button></p>' : '') + '</div>' +
       '<div class="box lg-box"><div class="sec-h"><h2>⚡ Your own searches</h2><span class="hint">Any search → “⚡ Save as list” in Lookup</span></div>' +
       (saved.length ? '<table class="lg-t"><tbody>' + saved.map(function (l) { return row({ id: l.id, name: l.name, q: l.q, d: 'Saved ' + (l.created ? new Date(l.created).toLocaleDateString() : '') }, true); }).join('') + '</tbody></table>' : '<p class="hint">None yet.</p>') + '</div>' +
       '<div class="box lg-box"><div class="sec-h"><h2>🔤 Words the search understands</h2><span class="hint">Mix them: <span class="mono">T2 2BR serviced late</span></span></div>' +
@@ -629,7 +660,7 @@ window.MIDP_PLUS = function (A) {
       var g = quickGroups(), saved = L.lists.filter(function (l) { return l.kind === 'search'; });
       h += '<div class="lstart">' +
         (P.recent.length ? '<div><h4>Recent</h4>' + P.recent.map(function (x) { return '<button type="button" class="lc" data-act="lkrecent" data-v="' + esc(x) + '">' + esc(x.length > 40 ? x.slice(0, 40) + '…' : x) + '</button>'; }).join('') + '</div>' : '') +
-        '<div><h4>📌 Pinned searches</h4>' + RECIPES.filter(function (x) { return P.pins.indexOf(x.id) > -1; }).map(function (x) { return '<button type="button" class="lc" data-act="lgrun" data-v="' + esc(x.q) + '">' + esc(x.name) + '</button>'; }).join('') +
+        '<div><h4>📌 Pinned searches</h4>' + recipes().filter(function (x) { return P.pins.indexOf(x.id) > -1; }).map(function (x) { return '<button type="button" class="lc" data-act="lgrun" data-v="' + esc(x.q) + '">' + esc(x.name) + '</button>'; }).join('') +
           '<button type="button" class="lc" data-go="logic">🧩 All searches…</button></div>' +
         (saved.length ? '<div><h4>Saved searches</h4>' + saved.map(function (l) { return '<button type="button" class="lc" data-act="lsopen" data-v="' + l.id + '">⚡ ' + esc(l.name) + '</button>'; }).join('') + '</div>' : '') +
         g.slice(0, 3).map(function (x) {
@@ -780,6 +811,21 @@ window.MIDP_PLUS = function (A) {
     },
     lkall: function (el) { var k = 'all_' + el.getAttribute('data-v'); P[k] = !P[k]; rerender(); },
     lgrun: function (el) { P.q = el.getAttribute('data-v'); P.chip = ''; P.f = {}; addRecent(P.q); saveUI(); A.go('lookup'); },
+    rcnew: function () { rcDialog(''); },
+    rcedit: function (el) { rcDialog(el.getAttribute('data-v')); },
+    rctest: function (el) { rcDialog(el.getAttribute('data-v'), rcVals()); },
+    rcsave: function (el) {
+      var id = el.getAttribute('data-v'), v = rcVals();
+      if (!v.name || !v.q) { A.toast('Give it a name and some words'); return; }
+      if (!id) { id = 'my' + Date.now().toString(36); RC.own.push({ id: id, name: v.name, q: v.q, d: v.d }); }
+      else if (baseOf(id)) { var o = baseOf(id); if (o.name === v.name && o.q === v.q && (o.d || '') === v.d) delete RC.edits[id]; else RC.edits[id] = { name: v.name, q: v.q, d: v.d }; }
+      else RC.own.forEach(function (x) { if (x.id === id) { x.name = v.name; x.q = v.q; x.d = v.d; } });
+      setPin(id, v.pin); saveRC(); A.closeDialog(); rerender(); A.toast('🧩 Saved “' + v.name + '”');
+    },
+    rcdel: function (el) { var id = el.getAttribute('data-v'); if (!confirm('Delete this search?')) return; RC.own = RC.own.filter(function (x) { return x.id !== id; }); setPin(id, false); saveRC(); A.closeDialog(); rerender(); },
+    rchide: function (el) { var id = el.getAttribute('data-v'); if (RC.hidden.indexOf(id) < 0) RC.hidden.push(id); setPin(id, false); saveRC(); A.closeDialog(); rerender(); A.toast('Hidden — “Show them again” brings it back'); },
+    rcunhide: function () { RC.hidden = []; saveRC(); rerender(); },
+    rcreset: function (el) { delete RC.edits[el.getAttribute('data-v')]; saveRC(); A.closeDialog(); rerender(); A.toast('Back to the original'); },
     svedit: function () { svDialog(SV.b, SV.list.join('\n')); },
     svcheck: function () { var t = document.getElementById('svText'), b = document.getElementById('svB'); svDialog(b.value, t.value); },
     svsave: function () {
@@ -1010,7 +1056,7 @@ window.MIDP_PLUS = function (A) {
   // other tabs / the project switch changed the lists
   window.addEventListener('storage', function (e) { if (e.key === LKEY) { L = A.readJSON(LKEY, null) || { lists: [] }; refreshHay(); rerender(); } });
   var css2 = document.createElement('style');
-  css2.textContent = '.lg{display:grid;gap:12px;min-width:0}.lg-box{padding:12px;min-width:0;overflow-x:auto}.lg-t td{word-break:break-word}.tt-box{min-width:0}.lg-t{width:100%;border-collapse:collapse}.lg-t td,.lg-t th{padding:6px 8px;border-bottom:1px solid var(--edge);text-align:left;vertical-align:top;font-size:13px}.lg-acts{white-space:nowrap}.lg-acts .btn{margin-left:4px}' +
+  css2.textContent = '.rc-f{display:grid;gap:3px;margin:6px 0;font-size:12px;font-weight:600}.rc-f input{width:100%}.lg{display:grid;gap:12px;min-width:0}.lg-box{padding:12px;min-width:0;overflow-x:auto}.lg-t td{word-break:break-word}.tt-box{min-width:0}.lg-t{width:100%;border-collapse:collapse}.lg-t td,.lg-t th{padding:6px 8px;border-bottom:1px solid var(--edge);text-align:left;vertical-align:top;font-size:13px}.lg-acts{white-space:nowrap}.lg-acts .btn{margin-left:4px}' +
     '.lres{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}.lres .grow{flex:1}.lvm{display:inline-flex;gap:4px}' +
     '.lcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}.lcard{display:grid;gap:3px;padding:8px 10px;border:1px solid var(--edge);background:var(--panel);cursor:pointer;font-size:13px;position:relative}.lcard input{position:absolute;right:6px;top:6px}.lcard.on{outline:2px solid var(--accent)}.lcard:hover{background:var(--raise)}' +
     '.lvbox{padding:10px 12px;margin:6px 0 10px;display:grid;gap:10px;min-width:0}.lvh{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}.lvb{display:grid;gap:6px;border-left:4px solid var(--info);padding-left:10px;min-width:0}' +

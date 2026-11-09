@@ -228,6 +228,20 @@ window.MIDP_PLUS = function (A) {
     if (/^\d+$/.test(d.lvl) && +d.lvl === n) return true;
     return new RegExp('\\b(LEVEL|LVL|L)\\s*0*' + n + '\\b').test(U(d.title));
   }
+  /* "serviced" can use YOUR list of unit types (🧩 Search logic › Serviced apartments › ✎ Edit list), per project */
+  var SVKEY = 'tidp-checker:svset', SV = Object.assign({ b: '', list: [] }, A.readJSON(SVKEY, {}));
+  function typCode(name) {     // "UNIT TYPE 2 BR - Type B1 (Res.2)" → "2BRB1"
+    var s = U(name), m = /(\d)\s*-?\s*(?:BR|BED|BEDROOMS?)\b.*?\bTYPE\s*([A-Z])\s*(\d?)(?=\s*(?:\(|-|$))/.exec(s);
+    return m ? m[1] + 'BR' + m[2] + m[3] : '';
+  }
+  var HOTELISH = /^HT\b|\bHOTEL\b|\bSUITE\b/;   // a short code like 1BR-A never means a hotel room
+  function svCodes() { var o = {}; SV.list.forEach(function (x) { var k = N(x); if (k) o[k] = 1; }); return o; }
+  function svMine(d) {
+    if (!d.typ) return false;
+    if (SV.b && U(d.bld) !== SV.b) return false;
+    var c = svCodes(), n = N(d.typ.name), k = typCode(d.typ.name);
+    return !!(c[n] || (k && c[k] && !HOTELISH.test(U(d.typ.name))));
+  }
   /* the search language — every kind of word it understands (shown in 🧩 Search logic) */
   var WORDS = {
     lvlr: function (d, t) {
@@ -240,6 +254,8 @@ window.MIDP_PLUS = function (A) {
     bed: function (d, t) { var s = U((d.typ ? d.typ.name : '') + ' ' + d.title); return t.n === 0 ? /\bSTUDIO\b/.test(s) : new RegExp('\\b' + t.n + '\\s*-?\\s*(BR|BED|BEDROOM)S?\\b').test(s); },
     cls: function (d, t) {
       var s = U((d.typ ? d.typ.name : '') + ' ' + d.title), u = arrOf(d), c = u ? u.cls.join(' ') : '';
+      if (SV.list.length && t.v === 'SV') return svMine(d);
+      if (SV.list.length && t.v === 'RES') return !!d.typ && /UNIT TYPE/.test(s) && !svMine(d) && !(u && /HOTEL/i.test(c));
       if (u && t.v === 'SV' && /SERVIC/i.test(c)) return true;
       if (u && t.v === 'HT' && /HOTEL/i.test(c)) return true;
       if (u && t.v === 'RES' && /SERVIC|HOTEL/i.test(c)) return false;
@@ -505,14 +521,28 @@ window.MIDP_PLUS = function (A) {
     ['A list of numbers', 'paste 2+ drawing numbers', 'Exactly those drawings, in that order (revision ignored)']
   ];
   function count(q) { var r = search(q, ''); return r.show === 'models' ? r.models.length + ' models' : r.show === 'typos' ? r.typos.length + ' unit types' : r.drawings.length + ' drawings'; }
+  function svDialog(b, text) {
+    if (!IX) build();
+    var blds = {}; IX.drawings.forEach(function (d) { if (d.bld && d.bld !== 'XX' && d.bld !== 'ZZ') blds[U(d.bld)] = 1; });
+    var items = String(text || '').split(/[\n,;\t]+/).map(function (x) { return x.trim(); }).filter(function (x) { return x && !/^serviced/i.test(x); });
+    var typs = {}; IX.drawings.forEach(function (d) { if (d.typ && (!b || U(d.bld) === b)) { var k = HOTELISH.test(U(d.typ.name)) ? '' : typCode(d.typ.name); typs[N(d.typ.name)] = d.typ.name; if (k && !typs[k]) typs[k] = d.typ.name; } });
+    var rows = items.map(function (x) { var hit = typs[N(x)]; return '<tr><td class="mono">' + esc(x) + '</td><td>' + (hit ? '✓ ' + esc(hit) : '<span class="tag c-warn">not found' + (b ? ' in ' + esc(bldName(b)) : '') + '</span>') + '</td></tr>'; }).join('');
+    A.openDialog('<h2 id="dlgH">🏨 Serviced apartments — your list</h2>' +
+      '<p class="hint" style="margin-top:0">One unit type per line, e.g. <span class="mono">2BR-B1</span> (or the full MIDP name). The word <b>serviced</b> in any search then means exactly these. Empty = automatic (SV in the name / arrangement).</p>' +
+      '<label class="hint">Tower <select id="svB"><option value="">All towers</option>' + Object.keys(blds).sort().map(function (k) { return '<option value="' + esc(k) + '"' + (k === b ? ' selected' : '') + '>' + esc(bldName(k)) + '</option>'; }).join('') + '</select></label>' +
+      '<textarea id="svText" rows="8" style="width:100%;margin-top:6px;font:12.5px/1.4 var(--mono,monospace)" placeholder="1BR-A&#10;2BR-B1">' + esc(items.join('\n')) + '</textarea>' +
+      (items.length ? '<div class="tw free" style="max-height:220px;overflow:auto;margin-top:6px"><table class="plain"><tbody>' + rows + '</tbody></table></div>' : '') +
+      '<div class="acts"><button class="btn" type="button" data-act="svclear">Use automatic</button><button class="btn" type="button" data-act="svcheck">✓ Check</button><button class="btn" type="button" data-act="dlgclose">Cancel</button><button class="btn primary" type="button" data-act="svsave">Save</button></div>');
+  }
   A.VIEWS.logic = function () {
     if (!IX) build();
     var saved = L.lists.filter(function (l) { return l.kind === 'search'; });
     var row = function (x, own) {
       var pin = P.pins.indexOf(x.id) > -1;
-      return '<tr><td><b>' + esc(x.name) + '</b><div class="hint">' + esc(x.d || '') + '</div></td><td class="mono">' + esc(x.q) + '</td><td>' + esc(count(x.q)) + '</td>' +
+      var dd = x.id === 'sv' && SV.list.length ? 'Your list: ' + A.plural(SV.list.length, 'unit type') + (SV.b ? ' in ' + bldName(SV.b) : '') : x.d || '';
+      return '<tr><td><b>' + esc(x.name) + '</b><div class="hint">' + esc(dd) + '</div></td><td class="mono">' + esc(x.q) + '</td><td>' + esc(count(x.q)) + '</td>' +
         '<td class="lg-acts"><button class="btn small primary" type="button" data-act="lgrun" data-v="' + esc(x.q) + '">Run</button>' +
-        (own ? '' : '<button class="btn small" type="button" data-act="lgpin" data-v="' + esc(x.id) + '" title="Show it on the Lookup start screen">' + (pin ? '📌 Pinned' : 'Pin') + '</button>') + '</td></tr>';
+        (own ? '' : '<button class="btn small" type="button" data-act="lgpin" data-v="' + esc(x.id) + '" title="Show it on the Lookup start screen">' + (pin ? '📌 Pinned' : 'Pin') + '</button>') + (x.id === 'sv' ? '<button class="btn small" type="button" data-act="svedit" title="Choose exactly which unit types are serviced">✎ Edit list</button>' : '') + '</td></tr>';
     };
     return '<div class="lg"><div class="box lg-box"><div class="sec-h"><h2>🧩 Ready-made searches</h2><span class="hint">Search pack ' + PACK + ' · each one is just words you could type yourself</span></div>' +
       '<table class="lg-t"><thead><tr><th>Search</th><th>Words</th><th>Now</th><th></th></tr></thead><tbody>' + RECIPES.map(function (x) { return row(x); }).join('') + '</tbody></table></div>' +
@@ -750,6 +780,14 @@ window.MIDP_PLUS = function (A) {
     },
     lkall: function (el) { var k = 'all_' + el.getAttribute('data-v'); P[k] = !P[k]; rerender(); },
     lgrun: function (el) { P.q = el.getAttribute('data-v'); P.chip = ''; P.f = {}; addRecent(P.q); saveUI(); A.go('lookup'); },
+    svedit: function () { svDialog(SV.b, SV.list.join('\n')); },
+    svcheck: function () { var t = document.getElementById('svText'), b = document.getElementById('svB'); svDialog(b.value, t.value); },
+    svsave: function () {
+      var t = document.getElementById('svText'), b = document.getElementById('svB');
+      SV = { b: b.value, list: t.value.split(/[\n,;\t]+/).map(function (x) { return x.trim(); }).filter(function (x) { return x && !/^serviced/i.test(x); }) };
+      A.writeJSON(SVKEY, SV); A.closeDialog(); rerender(); A.toast(SV.list.length ? '🏨 Serviced = your ' + SV.list.length + ' unit types' + (SV.b ? ' in ' + bldName(SV.b) : '') : 'Serviced = automatic again (SV in the name / arrangement)');
+    },
+    svclear: function () { SV = { b: '', list: [] }; A.writeJSON(SVKEY, SV); A.closeDialog(); rerender(); A.toast('Serviced = automatic again'); },
     lgpin: function (el) { var id = el.getAttribute('data-v'), i = P.pins.indexOf(id); if (i > -1) P.pins.splice(i, 1); else P.pins.push(id); saveUI(); rerender(); },
     lkvm: function (el) { P.vm = el.getAttribute('data-v'); saveUI(); rerender(); },
     lkxl: function () {

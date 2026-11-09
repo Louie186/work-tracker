@@ -224,7 +224,10 @@ table.chg th, table.chg td { text-align: left; padding: 6px 8px; border-bottom: 
 table.chg th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
 .warn { padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--amber) 14%, transparent); border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent); margin-bottom: 10px; font-size: 13px; }
 .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%) translateY(20px); background: var(--bg2); border: 1px solid var(--line); color: var(--ink); padding: 9px 16px; border-radius: 99px; opacity: 0; transition: .25s; pointer-events: none; z-index: 60; box-shadow: var(--shadow); }
-.toast.show { opacity: 1; transform: translateX(-50%); }
+.toast.show { opacity: 1; transform: translateX(-50%); pointer-events: auto; }
+.toast .undo { margin-left: 12px; border: 0; background: color-mix(in srgb, var(--ink) 12%, transparent); color: var(--ink); font: inherit; font-weight: 700; padding: 3px 10px; border-radius: 99px; cursor: pointer; }
+.day.over { outline: 2px dashed var(--accent); outline-offset: -3px; background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.ev[draggable="true"] { cursor: grab; }
 /* 8-bit skins: square chips too */
 html.lt-pixel .st, html.lt-pixel .who span, html.lt-pixel .seg, html.lt-pixel .kpi, html.lt-pixel .bcard, html.lt-pixel .ev { border-radius: 0 !important; }
 html.lt-pixel .seg { border: 3px solid var(--edge); box-shadow: 3px 3px 0 var(--edge); }
@@ -453,7 +456,7 @@ html.lt-pixel .logo { background: var(--accent); }
       var c = late ? 'lt' : (g.main ? st === 'Completed' : done === its.length && its.length) ? 'ok' : (g.main ? st !== 'Not started' : its.some(function (s) { return s.status !== 'Not started'; })) ? 'ip' : '';
       var count = all ? ' <span class="evn">' + allDone + '/' + all + '</span>' : '';
       var tip = t.code + ' ' + t.title + (g.main ? ' — due' : ' — ' + its.length + ' item(s) due') + (all ? ' · ' + allDone + ' of ' + all + ' done' : '') + (late ? ' · ' + late + ' late' : '') + (t.assignees ? ' · ' + t.assignees : '');
-      return '<button class="ev ' + (g.main ? 'parent ' : '') + c + '" data-edit="' + t.id + '" title="' + esc(tip) + '"><span class="evt">' + (g.main ? '' : '↳ ') + esc(t.title) + '</span>' + count + (late ? ' <span class="evl">' + late + ' late</span>' : '') + '</button>';
+      return '<button class="ev ' + (g.main ? 'parent ' : '') + c + '" draggable="true" data-caldrag="' + esc(t.id + '|' + date + '|' + (g.main ? 'main' : 'items')) + '" data-edit="' + t.id + '" title="' + esc(tip + ' · drag to another day to move') + '"><span class="evt">' + (g.main ? '' : '↳ ') + esc(t.title) + '</span>' + count + (late ? ' <span class="evl">' + late + ' late</span>' : '') + '</button>';
     };
     var MAX = 3;
     var items = {};
@@ -465,11 +468,11 @@ html.lt-pixel .logo { background: var(--accent); }
       if (gs.length > MAX) items[date].push('<button class="evmore" data-calday="' + date + '">' + (open ? 'Show less' : '+' + (gs.length - MAX) + ' more') + '</button>');
     });
     var html = '<section class="card"><div class="calh"><button class="btn sm" data-mon="-1">‹</button><h3>' + first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) + '</h3><button class="btn sm" data-mon="1">›</button>' +
-      '<button class="btn sm" data-mon="0">Today</button><span class="small">Bold = task due · ↳ = its items due that day · 3/10 = items done · red = late</span></div><div class="cal">' +
+      '<button class="btn sm" data-mon="0">Today</button><span class="small">Bold = task due · ↳ = its items due that day · 3/10 = items done · red = late · drag to move</span></div><div class="cal">' +
       ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(function (d) { return '<div class="dn">' + d + '</div>'; }).join('');
     for (var i = 0; i < 42; i++) {
       var d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i), k = dkey(d);
-      html += '<div class="day' + (d.getMonth() !== m ? ' other' : '') + (k === TODAY ? ' today' : '') + (UI.calOpen === k ? ' open' : '') + '"><div class="n">' + d.getDate() + '</div>' + (items[k] || []).join('') + '</div>';
+      html += '<div class="day' + (d.getMonth() !== m ? ' other' : '') + (k === TODAY ? ' today' : '') + (UI.calOpen === k ? ' open' : '') + '" data-calto="' + k + '"><div class="n">' + d.getDate() + '</div>' + (items[k] || []).join('') + '</div>';
     }
     $('main').innerHTML = html + '</div></section>';
   }
@@ -1277,7 +1280,11 @@ html.lt-pixel .logo { background: var(--accent); }
   }
 
   /* ===== 8. Wiring ===== */
-  function toast(m) { var t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast.tm); toast.tm = setTimeout(function () { t.classList.remove('show'); }, 2600); }
+  function toast(m, undo) {
+    var t = $('toast'); t.textContent = m;
+    if (undo) { var b = document.createElement('button'); b.className = 'undo'; b.textContent = 'Undo'; b.onclick = function () { undo(); t.classList.remove('show'); }; t.appendChild(b); }
+    t.classList.add('show'); clearTimeout(toast.tm); toast.tm = setTimeout(function () { t.classList.remove('show'); }, undo ? 5000 : 2600);
+  }
   document.addEventListener('click', function (e) {
     var el = e.target.closest('[data-calday],[data-act],[data-gsrc],[data-gencreate],[data-person],[data-view],[data-edit],[data-open],[data-coll],[data-new-in],[data-close],[data-savetask],[data-deltask],[data-addsub],[data-delsub],[data-addgroup],[data-delgroup],[data-savegroups],[data-makeexcel],[data-applyimport],[data-mon]');
     if (!el) { if (e.target === $('modal')) closeModal(); return; }
@@ -1423,8 +1430,37 @@ html.lt-pixel .logo { background: var(--accent); }
     e.preventDefault(); c.classList.remove('over');
     var t = findTask(e.dataTransfer.getData('text/plain')); if (!t) return;
     if (t.subs.length) { toast(t.code + ' has subtasks — its status comes from them'); return; }
-    setStatus(t.id, '', c.getAttribute('data-drop'));
+    var was = t.status, to = c.getAttribute('data-drop'); if (was === to) return;
+    setStatus(t.id, '', to);
+    toast(t.code + ' moved to ' + to, function () { setStatus(t.id, '', was); });
   });
+  // calendar drag & drop: move a task (or its items due that day) to another day
+  var calDrag = null;
+  document.addEventListener('dragstart', function (e) { var c = e.target.closest && e.target.closest('[data-caldrag]'); if (!c) return; calDrag = c.getAttribute('data-caldrag'); e.dataTransfer.setData('text/plain', calDrag); e.dataTransfer.effectAllowed = 'move'; });
+  document.addEventListener('dragover', function (e) { if (!calDrag) return; var d = e.target.closest && e.target.closest('[data-calto]'); if (!d) return; e.preventDefault(); document.querySelectorAll('.day.over').forEach(function (x) { if (x !== d) x.classList.remove('over'); }); d.classList.add('over'); });
+  document.addEventListener('dragend', function () { calDrag = null; document.querySelectorAll('.day.over').forEach(function (x) { x.classList.remove('over'); }); });
+  document.addEventListener('drop', function (e) {
+    var d = e.target.closest && e.target.closest('[data-calto]'); if (!d || !calDrag) return;
+    e.preventDefault(); d.classList.remove('over');
+    var p = calDrag.split('|'); calDrag = null;
+    moveDue(p[0], p[1], d.getAttribute('data-calto'), p[2]);
+  });
+  function moveDue(tid, from, to, kind) {
+    var t = findTask(tid); if (!t || !to || from === to) return;
+    var who = (UI.person || '').toLowerCase();
+    var mine = function (s) { return !who || split(s.assignees).concat(split(t.assignees)).some(function (n) { return n.toLowerCase() === who; }); };
+    var before = { due: t.due, subs: t.subs.map(function (s) { return s.due; }) }, n = 0;
+    if (kind === 'main') { t.due = to; n = 1; }
+    else t.subs.forEach(function (s) { if ((s.due || t.due) === from && mine(s)) { s.due = to; n++; } });
+    if (!n) return;
+    var what = kind === 'main' ? 'Due' : n + ' item' + (n === 1 ? '' : 's') + ' due';
+    t.history.push({ at: iso(), text: what + ': ' + fmtDate(from) + ' → ' + fmtDate(to) + ' (dragged on calendar)' });
+    t.updated = iso(); save(); render();
+    toast(t.code + ' ' + (kind === 'main' ? 'moved' : n + ' item' + (n === 1 ? '' : 's') + ' moved') + ' to ' + fmtDate(to), function () {
+      t.due = before.due; t.subs.forEach(function (s, i) { s.due = before.subs[i]; });
+      t.history.push({ at: iso(), text: 'Undo: ' + what + ' back to ' + fmtDate(from) }); t.updated = iso(); save(); render();
+    });
+  }
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
   // another tab / a skill changed the data → show it
   window.addEventListener('storage', function (e) {

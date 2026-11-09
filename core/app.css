@@ -1000,3 +1000,7 @@ body.light .heat-cell,body.pastel .heat-cell,body.melliea .heat-cell{background:
 .wk em{font-style:normal;font-size:.66rem;color:var(--muted);line-height:1}
 .wk.today em{padding:2px 7px;border-radius:8px;background:var(--panel);border:1px solid var(--line);color:var(--ink);font-weight:700}
 @keyframes wkGrow{from{transform:scaleY(.1);opacity:0}}
+
+/* Calendar drag & drop */
+#calendarGrid .day.dragover{outline:2px dashed var(--accent);outline-offset:-3px;background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.cal-task-marker[draggable="true"]{cursor:grab}

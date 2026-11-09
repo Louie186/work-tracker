@@ -26,6 +26,13 @@ Live site: https://louie186.github.io/work-tracker/
   - Remembered on this computer. Works with every theme
 - **This week** chart on the Dashboard — tasks finished each day, Mon–Sun
   - Today is the solid bar, other days are striped
+- **Drag and drop** (every move has **Undo** on the message):
+  - **Calendar:** drag a task from the day list onto another day to change its date
+    - Or drag a day's number badge to move all its open tasks at once
+  - **Delegation → Calendar:** drag a task to another day
+    - Bold chip = the task's due date. ↳ chip = only its items due that day
+    - Every move is written in the task's history
+  - **Boards** (To Do and Delegation): drag a card to change its status
 - Code: `core/slate.js` (menu fold + chart), colours in `core/theme.css` (section 4)
 
 ## The skills

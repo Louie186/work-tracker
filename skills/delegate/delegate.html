@@ -124,6 +124,14 @@ textarea { font: inherit; }
 .pm select { width: auto; max-width: 220px; padding: 4px 8px; font-size: 12px; } .form .pm label, .pm label { display: flex; flex-direction: row !important; gap: 5px; align-items: center; font-size: 12px; } .pm input[type=checkbox] { width: auto; }
 .pastewrap { margin: 8px 0; padding: 10px; border: 1px dashed var(--line); border-radius: 12px; }
 .fmt { display: grid; gap: 8px; }
+.xpick { border: 1px solid var(--line); border-radius: 12px; margin-top: 10px; overflow: hidden; }
+.xpick-h { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--soft); flex-wrap: wrap; }
+.xpick-l { max-height: 240px; overflow: auto; }
+.xrow { display: grid !important; grid-template-columns: auto auto 1fr auto auto; align-items: center; gap: 8px !important; padding: 5px 10px; border-top: 1px solid var(--line); font-size: 12.5px !important; color: var(--ink) !important; cursor: pointer; flex-direction: row !important; }
+.xrow input { width: auto; margin: 0; } .xrow .xc { font-weight: 700; white-space: nowrap; } .xrow .xt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xrow .xw, .xrow .xs { color: var(--muted); font-size: 11.5px; white-space: nowrap; } .xrow .xs.ok { color: var(--ok, #2e7d32); } .xrow.done .xt { color: var(--muted); }
+.xrow:has(input:not(:checked)) .xt { text-decoration: line-through; color: var(--muted); }
+@media (max-width: 600px) { .xrow { grid-template-columns: auto auto 1fr; } .xrow .xw { display: none; } }
 .fmt label { flex-direction: row !important; align-items: flex-start; gap: 10px !important; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--soft); cursor: pointer; color: var(--ink) !important; font-size: 13px !important; }
 .fmt label input { width: auto; margin-top: 3px; } .fmt label b { white-space: nowrap; min-width: 118px; } .fmt label span { color: var(--muted); }
 .fmt label:has(input:checked) { border-color: var(--accent); }
@@ -683,17 +691,49 @@ html.lt-pixel .logo { background: var(--accent); }
       people().map(function (n) { return '<option value="p:' + esc(n) + '">Person — ' + esc(n) + '</option>'; }).join('') + '</select></label>' +
       '<label>Issued by<input id="xBy" value="' + esc(myName()) + '" placeholder="Your name"></label>' +
       '<label class="full" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="xDone" checked style="width:auto"> Include completed tasks</label></div>' +
+      '<div class="xpick"><div class="xpick-h"><b>Tasks to share</b><span class="small" id="xCount"></span><span style="flex:1"></span>' +
+      '<button class="btn xs" type="button" data-xp="all">All</button><button class="btn xs" type="button" data-xp="none">None</button><button class="btn xs" type="button" data-xp="open" title="Untick tasks that are completed">Only open</button></div>' +
+      '<div class="xpick-l" id="xList"></div></div>' +
       '<p class="small" id="xInfo"></p>' +
       '<div class="foot"><span class="small">Every file is listed in 📊 Overview → Files.</span><div style="display:flex;gap:8px"><button class="btn" data-close>Cancel</button><button class="btn primary" data-makeexcel>Make file</button></div></div>');
-    var upd = function () { var p = planFor($('xScope').value, $('xDone').checked); $('xInfo').textContent = p.tasks.length + ' task(s) and ' + p.tasks.reduce(function (a, t) { return a + t.subs.length; }, 0) + ' subtask(s) will go in the file.'; };
-    $('xScope').onchange = upd; $('xDone').onchange = upd; upd();
+    var list = function () {     // the tasks in this scope, each with a tick box (untick the ones done in real life)
+      var ts = scopeTasks($('xScope').value, $('xDone').checked);
+      $('xList').innerHTML = ts.length ? ts.map(function (t) {
+        var st = statusOf(t), on = !XOFF[t.id];
+        return '<label class="xrow' + (st === 'Completed' ? ' done' : '') + '"><input type="checkbox" data-xt="' + esc(t.id) + '"' + (on ? ' checked' : '') + '>' +
+          '<span class="xc">' + esc(t.code || '') + '</span><span class="xt">' + esc(t.title || '(no title)') + '</span>' +
+          '<span class="xw">' + esc(t.assignees || groupName(t.group) || '') + '</span><span class="xs ' + (st === 'Completed' ? 'ok' : '') + '">' + esc(st) + '</span></label>';
+      }).join('') : '<p class="small" style="margin:6px">No tasks here.</p>';
+      upd();
+    };
+    var upd = function () {
+      var p = planFor($('xScope').value, $('xDone').checked), all = scopeTasks($('xScope').value, $('xDone').checked).length;
+      $('xCount').textContent = ' ' + p.tasks.length + ' of ' + all + ' ticked';
+      $('xInfo').textContent = p.tasks.length + ' task(s) and ' + p.tasks.reduce(function (a, t) { return a + t.subs.length; }, 0) + ' subtask(s) will go in the file.';
+    };
+    $('xScope').onchange = list; $('xDone').onchange = list;
+    $('xList').onchange = function (e) { var id = e.target.getAttribute('data-xt'); if (!id) return; if (e.target.checked) delete XOFF[id]; else XOFF[id] = 1; upd(); };
+    document.querySelector('.xpick-h').onclick = function (e) {
+      var k = e.target.getAttribute('data-xp'); if (!k) return;
+      scopeTasks($('xScope').value, $('xDone').checked).forEach(function (t) { if (k === 'all') delete XOFF[t.id]; else if (k === 'none' || statusOf(t) === 'Completed') XOFF[t.id] = 1; else delete XOFF[t.id]; });
+      list();
+    };
+    list();
+  }
+  var XOFF = {};      // tasks you unticked in "Tasks to share" (kept while the page is open)
+  function scopeTasks(scope, withDone) {
+    var tasks = D.tasks.slice();
+    if (scope.indexOf('g:') === 0) { var gid = scope.slice(2); tasks = tasks.filter(function (t) { return t.group === gid; }); }
+    var person = scope.indexOf('p:') === 0 ? scope.slice(2) : '';
+    if (person) tasks = tasks.filter(function (t) { return hasPerson(t, person); });
+    if (!withDone) tasks = tasks.filter(function (t) { return statusOf(t) !== 'Completed'; });
+    return tasks;
   }
   function planFor(scope, withDone) {
-    var tasks = D.tasks.slice(), label = 'All tasks', ppl = {};
-    if (scope.indexOf('g:') === 0) { var gid = scope.slice(2); tasks = tasks.filter(function (t) { return t.group === gid; }); label = groupName(gid); }
+    var tasks = scopeTasks(scope, withDone).filter(function (t) { return !XOFF[t.id]; }), label = 'All tasks', ppl = {};
+    if (scope.indexOf('g:') === 0) label = groupName(scope.slice(2));
     var person = scope.indexOf('p:') === 0 ? scope.slice(2) : '';
-    if (person) { tasks = tasks.filter(function (t) { return hasPerson(t, person); }); label = person; }
-    if (!withDone) tasks = tasks.filter(function (t) { return statusOf(t) !== 'Completed'; });
+    if (person) label = person;
     var out = tasks.map(function (t) {
       var subs = t.subs;
       // for one person: keep the task, but only the subtasks that are theirs (unless the whole task is theirs)
